@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "emo-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-29",
+  // "compatibility_flags": [
+  //   "nodejs_compat"
+  // ],
+  "vars": {
+    "CLIENT_URL": "https://emo-client.pages.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "emo-db",
+      "database_id": "fa2b3ee8-7054-44bb-9366-a5b072cc080c",
+      // Optional: migrations dir for wrangler d1 migrations
+      "migrations_dir": "migrations"
+    }
+  ]
+}
