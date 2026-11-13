@@ -4,13 +4,13 @@
 
 **Blocked by:** 09 (Integration seam + Apple Calendar inbound), 05 (Task lifecycle reshapes the day)
 
-**Status:** in progress (settings hookup pending, see Comments)
+**Status:** done (pending manual check, see Comments)
 
-- [ ] Opt-in toggle in Settings → Integrations; creates the "Emo" calendar on first enable
-- [ ] Replanning updates, moves and deletes the corresponding Calendar.app events
-- [ ] Emo-written events are excluded from inbound import (no feedback loop)
-- [ ] Disabling write-back offers to remove the Emo calendar's events
-- [ ] Engine's outbound change generation is unit-tested
+- [x] Opt-in toggle in Settings → Integrations; creates the "Emo" calendar on first enable
+- [x] Replanning updates, moves and deletes the corresponding Calendar.app events
+- [x] Emo-written events are excluded from inbound import (no feedback loop)
+- [x] Disabling write-back offers to remove the Emo calendar's events
+- [x] Engine's outbound change generation is unit-tested
 
 ## Comments
 
@@ -21,3 +21,5 @@
 - **Pinned blocks** are mirrored like any other task block.
 
 **Remaining:** add `WriteBackSettingsSection()` to the Integrations settings form (inside the Apple Calendar part). Deferred because another session has uncommitted edits to `IntegrationsSettingsView.swift`. Then check by hand: toggle on, Plan Day, the Emo calendar shows the blocks, a re-plan moves them, toggle off removes them.
+
+2026-11-13: The toggle is now in Settings › Integrations (Apple Calendar section). Only that hunk was staged; the other session's uncommitted edits to the same file were left out of the commit. Manual check still pending.

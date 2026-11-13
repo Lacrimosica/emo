@@ -47,6 +47,8 @@ struct IntegrationsSettingsView: View {
                     }
                 }
 
+                WriteBackSettingsSection()
+
                 Section {
                     HStack {
                         Button("Sync Now") { calendarSync.reloadCalendars(); calendarSync.sync() }
