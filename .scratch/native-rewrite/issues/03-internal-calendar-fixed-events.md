@@ -4,11 +4,11 @@
 
 **Blocked by:** 01 (Walking skeleton)
 
-**Status:** done (pending manual UI check, see Comments)
+**Status:** done
 
 - [x] Internal calendar event model with kinds (fixed, task block, transit, buffer), start/end, title, notes, an origin (local vs. linked to an external source) and a locked flag
 - [x] Today shows a vertical timeline of the selected day with events laid out by time
-- [ ] User can create a fixed event, edit its title/time, drag to move, drag to resize, and delete it
+- [x] User can create a fixed event, edit its title/time, drag to move, drag to resize, and delete it
 - [x] Navigating to previous/next day works
 - [x] Events persist across relaunch
 - [x] Calendar engine API in EmoKit is the only path that writes internal events (views call it, never the store directly)
@@ -22,3 +22,5 @@ Not verifiable with synthetic input. Needs a manual check before ticking the "cr
 - drag an event to move it (15-minute snapping)
 - drag top/bottom edge to resize
 - click an event, then press Delete
+
+2026-11-13: Manual check passed (double-click create, drag move, edge resize, Delete key), confirmed by the user.
