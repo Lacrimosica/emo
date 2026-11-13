@@ -4,6 +4,7 @@ import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable {
     case today
+    case week
     case backlog
 
     var id: String { rawValue }
@@ -12,6 +13,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .today: "Today"
+        case .week: "Week"
         case .backlog: "Backlog"
         }
     }
@@ -19,6 +21,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .today: "sun.max"
+        case .week: "calendar"
         case .backlog: "tray.full"
         }
     }
@@ -31,6 +34,7 @@ struct RootView: View {
     @AppStorage(SidebarItem.storageKey) private var storedSelection: SidebarItem = .today
     @State private var today = LocalDay.today()
     @State private var displayedDay = LocalDay.today()
+    @State private var weekStart = LocalDay.today().startOfWeek()
     /// The day whose check-in sheet is open, if any.
     @State private var checkInDay: LocalDay?
     /// The day the user dismissed the automatic prompt, so it doesn't nag again until tomorrow.
@@ -53,6 +57,16 @@ struct RootView: View {
                     today: today,
                     onChangeDay: { displayedDay = $0 },
                     onCheckIn: { checkInDay = displayedDay }
+                )
+            case .week:
+                WeekView(
+                    weekStart: weekStart,
+                    today: today,
+                    onChangeWeek: { weekStart = $0 },
+                    onOpenDay: { day in
+                        displayedDay = day
+                        storedSelection = .today
+                    }
                 )
             case .backlog:
                 BacklogView()
@@ -79,6 +93,7 @@ struct RootView: View {
         let now = LocalDay.today()
         guard now != today else { return }
         if displayedDay == today { displayedDay = now }
+        if weekStart == today.startOfWeek() { weekStart = now.startOfWeek() }
         today = now
     }
 

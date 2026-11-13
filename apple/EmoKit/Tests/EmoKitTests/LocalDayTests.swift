@@ -44,6 +44,17 @@ import Testing
         #expect(dstDay.end(in: ny).timeIntervalSince(dstDay.start(in: ny)) == 23 * 3600)
     }
 
+    @Test func startOfWeekFollowsTheCalendarsFirstWeekday() {
+        var monday = calendar("Europe/Rome"); monday.firstWeekday = 2
+        var sunday = calendar("America/New_York"); sunday.firstWeekday = 1
+        let friday = LocalDay(year: 2026, month: 11, day: 13)
+        #expect(friday.startOfWeek(calendar: monday).key == "2026-11-09")
+        #expect(friday.startOfWeek(calendar: sunday).key == "2026-11-08")
+        let mondayItself = LocalDay(year: 2026, month: 11, day: 9)
+        #expect(mondayItself.startOfWeek(calendar: monday) == mondayItself)
+        #expect(mondayItself.days(7, calendar: monday).last?.key == "2026-11-15")
+    }
+
     @Test func ordering() {
         #expect(LocalDay(year: 2026, month: 1, day: 31) < LocalDay(year: 2026, month: 2, day: 1))
     }

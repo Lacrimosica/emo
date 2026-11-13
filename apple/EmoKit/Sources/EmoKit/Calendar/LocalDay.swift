@@ -57,6 +57,18 @@ public struct LocalDay: Hashable, Comparable, Identifiable, Sendable, CustomStri
         return LocalDay(calendar.date(byAdding: .day, value: days, to: noon)!, calendar: calendar)
     }
 
+    /// The first day of the week containing this day, per `calendar.firstWeekday`.
+    public func startOfWeek(calendar: Calendar = .current) -> LocalDay {
+        let weekday = calendar.component(.weekday, from: start(in: calendar))
+        let offset = (weekday - calendar.firstWeekday + 7) % 7
+        return adding(days: -offset, calendar: calendar)
+    }
+
+    /// This day and the following `count - 1` days.
+    public func days(_ count: Int, calendar: Calendar = .current) -> [LocalDay] {
+        (0..<count).map { adding(days: $0, calendar: calendar) }
+    }
+
     public static func < (lhs: LocalDay, rhs: LocalDay) -> Bool {
         (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
     }

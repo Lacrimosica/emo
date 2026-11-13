@@ -42,6 +42,15 @@ import Testing
         #expect(try engine.events(on: day, calendar: calendar).map(\.title) == ["Overnight", "Lunch", "Late"])
     }
 
+    @Test func rangeQueryCoversEveryDayInclusive() throws {
+        let week = day.days(7, calendar: calendar)
+        for d in week { try engine.createFixedEvent(title: d.key, start: at(10, on: d), end: at(11, on: d)) }
+        try engine.createFixedEvent(title: "after", start: at(10, on: day.adding(days: 7, calendar: calendar)),
+                                    end: at(11, on: day.adding(days: 7, calendar: calendar)))
+        let found = try container.mainContext.fetch(CalendarEngine.descriptor(from: week[0], through: week[6], calendar: calendar))
+        #expect(found.map(\.title) == week.map(\.key))
+    }
+
     @Test func invalidEventsAreRejected() throws {
         #expect(throws: CalendarEngine.EditError.emptyTitle) {
             try engine.createFixedEvent(title: " ", start: at(9), end: at(10))

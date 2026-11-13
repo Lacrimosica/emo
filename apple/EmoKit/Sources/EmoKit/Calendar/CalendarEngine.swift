@@ -31,10 +31,15 @@ public struct CalendarEngine {
 
     /// Shared with SwiftUI's `@Query` so views show exactly what the engine reads.
     public static func descriptor(for day: LocalDay, calendar: Calendar = .current) -> FetchDescriptor<CalendarEvent> {
-        let dayStart = day.start(in: calendar)
-        let dayEnd = day.end(in: calendar)
+        descriptor(from: day, through: day, calendar: calendar)
+    }
+
+    /// Events overlapping any of the days `first`…`last` (inclusive), earliest first.
+    public static func descriptor(from first: LocalDay, through last: LocalDay, calendar: Calendar = .current) -> FetchDescriptor<CalendarEvent> {
+        let rangeStart = first.start(in: calendar)
+        let rangeEnd = last.end(in: calendar)
         return FetchDescriptor(
-            predicate: #Predicate { $0.start < dayEnd && $0.end > dayStart },
+            predicate: #Predicate { $0.start < rangeEnd && $0.end > rangeStart },
             sortBy: [SortDescriptor(\.start), SortDescriptor(\.end)]
         )
     }
