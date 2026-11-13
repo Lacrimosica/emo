@@ -4,9 +4,13 @@
 
 **Blocked by:** 04 (Auto-scheduler)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Settings window opens via the app menu / Cmd-,
-- [ ] Day start, day end, minimum chunk minutes and energy budget mapping are editable and persisted
-- [ ] Scheduler reads settings instead of constants; tests cover non-default settings
-- [ ] Sensible defaults match legacy behaviour (9–22, 30 min, legacy energy table)
+- [x] Settings window opens via the app menu / Cmd-,
+- [x] Day start, day end, minimum chunk minutes and energy budget mapping are editable and persisted
+- [x] Scheduler reads settings instead of constants; tests cover non-default settings
+- [x] Sensible defaults match legacy behaviour (9–22, 30 min, legacy energy table)
+
+## Comments
+
+2026-11-13: Settings are stored in SwiftData (`PlannerPreferences`, one record, duplicates collapsed) rather than UserDefaults, so they sync with iCloud in ticket 14. `DayPlanning` and `TaskLifecycle` load the saved settings by default. Changes apply as soon as they're valid; invalid combinations show an inline error and aren't saved. Verified in the app: ⌘, opens Settings, and a stepper change persists to the store.

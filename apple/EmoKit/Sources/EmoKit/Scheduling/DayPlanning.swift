@@ -26,10 +26,11 @@ public struct DayPlanning {
     private let calendar: Calendar
     private let settings: PlannerSettings
 
-    public init(context: ModelContext, calendar: Calendar = .current, settings: PlannerSettings = .default) {
+    /// `settings` defaults to the user's saved planner settings.
+    public init(context: ModelContext, calendar: Calendar = .current, settings: PlannerSettings? = nil) {
         self.context = context
         self.calendar = calendar
-        self.settings = settings
+        self.settings = settings ?? PlannerSettingsStore(context: context).load()
     }
 
     private var engine: CalendarEngine { CalendarEngine(context: context) }

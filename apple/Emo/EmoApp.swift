@@ -22,6 +22,11 @@ struct EmoApp: App {
         .modelContainer(container)
         .defaultSize(width: 900, height: 600)
         .commands { SectionCommands() }
+
+        Settings {
+            SettingsView()
+        }
+        .modelContainer(container)
     }
 }
 
