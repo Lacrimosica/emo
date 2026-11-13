@@ -16,11 +16,16 @@ public struct ClarifierReply: StructuredOutput, Equatable {
         self.task = task
     }
 
+    /// Valid for Claude structured outputs (every object closes with `additionalProperties: false`)
+    /// and for Ollama's `format`.
     public static let jsonSchema = """
         {
           "type": "object",
           "properties": {
-            "question": { "type": ["string", "null"], "description": "One short clarifying question, or null when proposing the task." },
+            "question": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "One short clarifying question, or null when proposing the task."
+            },
             "task": {
               "anyOf": [
                 { "type": "null" },
@@ -32,12 +37,14 @@ public struct ClarifierReply: StructuredOutput, Equatable {
                     "energyCost": { "type": "string", "enum": ["low", "medium", "high"] },
                     "category": { "type": "string", "enum": ["external_commitment", "self_care", "personal", "leisure"] }
                   },
-                  "required": ["name", "estimatedHours", "energyCost", "category"]
+                  "required": ["name", "estimatedHours", "energyCost", "category"],
+                  "additionalProperties": false
                 }
               ]
             }
           },
-          "required": ["question", "task"]
+          "required": ["question", "task"],
+          "additionalProperties": false
         }
         """
 }

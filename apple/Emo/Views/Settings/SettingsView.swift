@@ -9,6 +9,9 @@ struct SettingsView: View {
             Tab("Planning", systemImage: "calendar.day.timeline.left") {
                 PlanningSettingsView()
             }
+            Tab("AI", systemImage: "sparkles") {
+                AISettingsView()
+            }
         }
         .frame(width: 460)
     }
