@@ -29,8 +29,10 @@ struct RootView: View {
 
     @State private var selection: SidebarItem? = .today
     @State private var today = LocalDay.today()
-    @State private var isCheckingIn = false
-    /// Days the user dismissed the prompt with "Later", so it doesn't nag again until tomorrow.
+    @State private var displayedDay = LocalDay.today()
+    /// The day whose check-in sheet is open, if any.
+    @State private var checkInDay: LocalDay?
+    /// The day the user dismissed the automatic prompt, so it doesn't nag again until tomorrow.
     @State private var promptDismissedFor: LocalDay?
 
     var body: some View {
@@ -42,13 +44,18 @@ struct RootView: View {
         } detail: {
             switch selection {
             case .today, nil:
-                TodayView(day: today, isCheckingIn: $isCheckingIn)
+                TodayView(
+                    day: displayedDay,
+                    today: today,
+                    onChangeDay: { displayedDay = $0 },
+                    onCheckIn: { checkInDay = displayedDay }
+                )
             case .backlog:
                 BacklogView()
             }
         }
-        .sheet(isPresented: $isCheckingIn, onDismiss: { promptDismissedFor = today }) {
-            CheckInSheet(day: today)
+        .sheet(item: $checkInDay, onDismiss: { promptDismissedFor = today }) { day in
+            CheckInSheet(day: day)
         }
         .task(id: today) { promptForCheckInIfNeeded() }
         .onChange(of: scenePhase) { _, phase in
@@ -61,12 +68,14 @@ struct RootView: View {
 
     private func refreshToday() {
         let now = LocalDay.today()
-        if now != today { today = now }
+        guard now != today else { return }
+        if displayedDay == today { displayedDay = now }
+        today = now
     }
 
     private func promptForCheckInIfNeeded() {
-        guard promptDismissedFor != today, !isCheckingIn else { return }
+        guard promptDismissedFor != today, checkInDay == nil else { return }
         let existing = try? CheckIns(context: modelContext).checkIn(for: today)
-        if existing == nil { isCheckingIn = true }
+        if existing == nil { checkInDay = today }
     }
 }

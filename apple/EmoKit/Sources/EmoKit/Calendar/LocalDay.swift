@@ -5,7 +5,9 @@ import Foundation
 /// Day-scoped records (check-ins, schedules) are keyed by `LocalDay.key` ("YYYY-MM-DD") rather than
 /// by a `Date`, so a record never drifts to a neighbouring day because of UTC conversion — the bug
 /// the legacy web engine had with `toISOString().split('T')[0]`.
-public struct LocalDay: Hashable, Comparable, Sendable, CustomStringConvertible {
+public struct LocalDay: Hashable, Comparable, Identifiable, Sendable, CustomStringConvertible {
+    public var id: String { key }
+
     public let year: Int
     public let month: Int
     public let day: Int

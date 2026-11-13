@@ -2,93 +2,121 @@ import EmoKit
 import SwiftData
 import SwiftUI
 
-/// The day at a glance. Hosts the check-in now; the timeline arrives with ticket 03.
+/// One day: its check-in and its timeline on the internal calendar.
 struct TodayView: View {
     let day: LocalDay
-    @Binding var isCheckingIn: Bool
+    let today: LocalDay
+    let onChangeDay: (LocalDay) -> Void
+    let onCheckIn: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
     @Query private var checkIns: [CheckIn]
+    @State private var selectedEventID: UUID?
+    @State private var editingEventID: UUID?
 
-    init(day: LocalDay, isCheckingIn: Binding<Bool>) {
+    init(day: LocalDay, today: LocalDay, onChangeDay: @escaping (LocalDay) -> Void, onCheckIn: @escaping () -> Void) {
         self.day = day
-        self._isCheckingIn = isCheckingIn
+        self.today = today
+        self.onChangeDay = onChangeDay
+        self.onCheckIn = onCheckIn
         self._checkIns = Query(CheckIns.descriptor(for: day))
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(day.start().formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .font(.largeTitle.weight(.semibold))
-
-                CheckInCard(checkIn: checkIns.first) { isCheckingIn = true }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(day.start().formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                        .font(.title.weight(.semibold))
+                    if day != today {
+                        Text(day < today ? "Past day" : "Upcoming")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                CheckInSummary(checkIn: checkIns.first, onCheckIn: onCheckIn)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            DayTimelineView(day: day, selectedEventID: $selectedEventID, editingEventID: $editingEventID)
         }
-        .navigationTitle("Today")
+        .navigationTitle(day == today ? "Today" : day.start().formatted(date: .abbreviated, time: .omitted))
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                Button("Previous Day", systemImage: "chevron.left") { onChangeDay(day.adding(days: -1)) }
+                    .keyboardShortcut("[", modifiers: .command)
+                Button("Today") { onChangeDay(today) }
+                    .disabled(day == today)
+                    .keyboardShortcut("t", modifiers: .command)
+                Button("Next Day", systemImage: "chevron.right") { onChangeDay(day.adding(days: 1)) }
+                    .keyboardShortcut("]", modifiers: .command)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("New Event", systemImage: "calendar.badge.plus", action: newEvent)
+                    .keyboardShortcut("e", modifiers: .command)
+            }
+        }
+        .onChange(of: day) {
+            selectedEventID = nil
+            editingEventID = nil
+        }
+    }
+
+    /// Creates a one-hour event at the next quarter hour today, or 9:00 on other days.
+    private func newEvent() {
+        let calendar = Calendar.current
+        let start: Date
+        if day == today {
+            let next = Date.now.addingTimeInterval(7.5 * 60).snapped(toMinutes: 15, calendar: calendar)
+            start = min(next, day.end(in: calendar).addingTimeInterval(-3600))
+        } else {
+            start = calendar.date(byAdding: .hour, value: 9, to: day.start(in: calendar))!
+        }
+        let engine = CalendarEngine(context: modelContext)
+        guard let event = try? engine.createFixedEvent(title: "New Event", start: start, end: start.addingTimeInterval(3600))
+        else { return }
+        selectedEventID = event.id
+        editingEventID = event.id
     }
 }
 
-private struct CheckInCard: View {
+private struct CheckInSummary: View {
     let checkIn: CheckIn?
-    let onEdit: () -> Void
+    let onCheckIn: () -> Void
 
     var body: some View {
-        GroupBox {
-            if let checkIn {
-                HStack(spacing: 32) {
-                    Meter(title: "Mood", value: checkIn.mood, systemImage: "face.smiling")
-                    Meter(title: "Energy", value: checkIn.energy, systemImage: "bolt.fill")
-                    Spacer()
-                    Button("Edit", action: onEdit)
+        if let checkIn {
+            Button(action: onCheckIn) {
+                HStack(spacing: 14) {
+                    Label("\(checkIn.mood)/5", systemImage: "face.smiling")
+                    Label("\(checkIn.energy)/5", systemImage: "bolt.fill")
                 }
-                .padding(8)
-            } else {
-                HStack {
-                    Label("You haven't checked in today.", systemImage: "sun.max")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Check In", action: onEdit)
-                        .buttonStyle(.borderedProminent)
-                }
-                .padding(8)
+                .font(.callout.monospacedDigit())
             }
-        } label: {
-            Text("Check-in")
-        }
-    }
-}
-
-private struct Meter: View {
-    let title: String
-    let value: Int
-    let systemImage: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: systemImage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 4) {
-                ForEach(Array(CheckIns.scale), id: \.self) { n in
-                    Capsule()
-                        .fill(n <= value ? Color.accentColor : Color.secondary.opacity(0.2))
-                        .frame(width: 18, height: 8)
-                }
-                Text("\(value)/5")
-                    .font(.callout.monospacedDigit())
-                    .padding(.leading, 4)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(title) \(value) of 5")
+            .buttonStyle(.bordered)
+            .help("Mood and energy — click to edit")
+            .accessibilityLabel("Mood \(checkIn.mood) of 5, energy \(checkIn.energy) of 5. Edit check-in.")
+        } else {
+            Button("Check In", systemImage: "sun.max", action: onCheckIn)
+                .buttonStyle(.borderedProminent)
         }
     }
 }
 
 #Preview {
     let container = try! EmoStore.makeContainer(.inMemory)
+    let engine = CalendarEngine(context: container.mainContext)
+    let start = Calendar.current.date(byAdding: .hour, value: 10, to: LocalDay.today().start())!
+    try! engine.createFixedEvent(title: "Dentist", start: start, end: start.addingTimeInterval(3600))
+    try! engine.createFixedEvent(title: "Call with Sam", start: start.addingTimeInterval(1800), end: start.addingTimeInterval(5400))
     try! CheckIns(context: container.mainContext).record(mood: 4, energy: 2, for: .today())
-    return NavigationStack { TodayView(day: .today(), isCheckingIn: .constant(false)) }
-        .modelContainer(container)
+    return NavigationStack {
+        TodayView(day: .today(), today: .today(), onChangeDay: { _ in }, onCheckIn: {})
+    }
+    .modelContainer(container)
+    .frame(width: 700, height: 600)
 }
