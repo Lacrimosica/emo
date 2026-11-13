@@ -15,6 +15,9 @@ struct TaskChatSheet: View {
     @State private var errorMessage: String?
     @State private var unavailableReason: String?
     @FocusState private var inputFocused: Bool
+    @State private var dictation = DictationController()
+    /// What was already typed when dictation started; the live transcript is appended to it.
+    @State private var textBeforeDictation = ""
 
     private let provider = AIProviders.current()
 
@@ -58,8 +61,30 @@ struct TaskChatSheet: View {
                     .background(.quaternary)
             }
 
+            if let dictationError = dictation.errorMessage {
+                Label(dictationError, systemImage: "mic.slash")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+            }
+
             Divider()
             HStack {
+                Button(dictation.isRecording ? "Stop Dictation" : "Dictate",
+                       systemImage: dictation.isRecording ? "stop.circle.fill" : "mic") {
+                    if !dictation.isRecording { textBeforeDictation = input }
+                    Task { await dictation.toggle() }
+                }
+                .labelStyle(.iconOnly)
+                .font(.title2)
+                .buttonStyle(.plain)
+                .foregroundStyle(dictation.isRecording ? Color.red : .secondary)
+                .disabled(unavailableReason != nil || isThinking)
+                .help(dictation.isRecording ? "Stop dictation" : "Dictate your task")
+                .symbolEffect(.pulse, isActive: dictation.isRecording)
+
                 TextField("Message", text: $input, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...4)
@@ -88,6 +113,11 @@ struct TaskChatSheet: View {
             if case .unavailable(let why) = await provider.availability() { unavailableReason = why }
             inputFocused = true
         }
+        .onChange(of: dictation.transcript) { _, spoken in
+            guard dictation.isRecording || !spoken.isEmpty else { return }
+            input = [textBeforeDictation, spoken].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        .onDisappear { dictation.stop() }
     }
 
     private var canSend: Bool {
@@ -96,6 +126,7 @@ struct TaskChatSheet: View {
 
     private func send() {
         guard canSend else { return }
+        dictation.stop()
         conversation.append(ChatTurn(.user, input.trimmingCharacters(in: .whitespacesAndNewlines)))
         input = ""
         proposal = nil
