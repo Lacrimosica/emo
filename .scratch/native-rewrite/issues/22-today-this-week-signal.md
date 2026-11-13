@@ -4,7 +4,7 @@
 
 **Blocked by:** 30 (notes syntax); setting it from chat needs 32, 33
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 TODAY / THIS WEEK are sections inside a Reminders list, which EventKit can't see. Decided (2026-11-13):
 carry them as a keyed line in the reminder's notes, using the syntax from 30.

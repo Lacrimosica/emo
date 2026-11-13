@@ -6,7 +6,7 @@ AI call reads it through one shared base prompt.
 
 **Blocked by:** 17
 
-**Status:** needs-triage (confirm the syntax below)
+**Status:** ready-for-agent
 
 ## Why notes
 
@@ -44,3 +44,13 @@ Unknown keys are kept as-is and ignored, so new keys (e.g. `when: today` for 22)
 - [ ] `EmoPrompt.base`: one shared system-prompt fragment explaining list roles, areas and this syntax. `TaskClarifier` and future sizers prepend it. Each task is rendered for the AI as `title · list role/area · part of · context · notes`
 - [ ] Backlog row shows `part of` as a subtitle
 - [ ] Tests: round-trip keeps free text, malformed lines are ignored, `#` lines are left as free text
+
+## Comments
+
+2026-11-13 (triage): the user confirmed the approach: Emo's agent enriches reminders minimally, following a
+specific syntax written into the system prompt.
+- The syntax is defined **once**: `EmoPrompt.base` in EmoKit is the single source of truth. The keys, value formats
+  and the "minimal edits only" rules live there. Parser tests check that every example in the prompt parses, so the
+  prompt and `ReminderNotes` can't drift apart.
+- Keys for v1: `ongoing`, `part of`, `context`, `when` (22).
+- Mirror the syntax in `GLOSSARY.md` (create it) for humans; the prompt stays authoritative.

@@ -15,3 +15,8 @@ assistant asks once and stores the answer.
 - [ ] Notes model + Settings editor
 - [ ] Clarifier and sizer read the notes
 - [ ] Clarifying a vague task writes a note
+
+## Comments
+
+2026-11-13: Per-reminder context now lives in the reminder's own notes (30) and is written from the chat (33).
+This ticket keeps the cross-cutting facts ("Poli = university", "groceries on Saturday morning").
