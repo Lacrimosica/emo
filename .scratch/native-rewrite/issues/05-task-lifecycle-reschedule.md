@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Auto-scheduler)
 
-**Status:** done (pending manual UI check, see Comments)
+**Status:** done
 
 - [x] Mark a task complete from Today or Backlog; its future blocks are removed and remaining time is replanned
 - [x] Skip a task for today; it returns to the backlog and the day replans without it
@@ -33,3 +33,5 @@ Manual check still to do (synthetic input can't drive these menus reliably):
 - Backlog: checkbox completes; right-click › Edit… / Schedule at… / Delete…; double-click edits; swipe actions.
 - Timeline right-click on a task block: Skip for Today, Pin Here / Unpin, Edit Task…, Remove Block. The pin icon appears when pinned.
 - Block editor for a task block: Pinned toggle, Complete Task, Skip Today.
+
+2026-11-13: Manual UI check done by the user (after the sidebar selection fix in 7a976e9).
