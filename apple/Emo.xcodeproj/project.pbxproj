@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		151CF87CA0A26E8720A24135 /* EmoKit in Frameworks */ = {isa = PBXBuildFile; productRef = F5F65131B22EBBDE25AA65C4 /* EmoKit */; };
 		9E818AB2530D2BB095DA89B8 /* EmoKit in Frameworks */ = {isa = PBXBuildFile; productRef = 16DD083F1A0BC99B0461E48F /* EmoKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		7912E32FF391734FEBE32CF3 /* EmoKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = EmoKit; path = EmoKit; sourceTree = SOURCE_ROOT; };
+		97EA302697C4CAA51569DF5C /* EmoPhone.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EmoPhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE539BECF01FC065BA671CD9 /* Emo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Emo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -25,9 +27,35 @@
 			path = Emo;
 			sourceTree = "<group>";
 		};
+		BD18BDDD7BAC147AE8813C9B /* EmoPhone */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = EmoPhone;
+			sourceTree = "<group>";
+		};
+		D8A01EF8785686F8A2B3EBD7 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		132A34668CA2B2E7CE8DE49F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				151CF87CA0A26E8720A24135 /* EmoKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		71B65AA85BFFCBD64855D9EB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -43,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				EE539BECF01FC065BA671CD9 /* Emo.app */,
+				97EA302697C4CAA51569DF5C /* EmoPhone.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -59,7 +88,9 @@
 			isa = PBXGroup;
 			children = (
 				BBC85AD994C5C5189704717A /* Emo */,
+				BD18BDDD7BAC147AE8813C9B /* EmoPhone */,
 				9BC2DBC49BF6603FEABC36ED /* Packages */,
+				D8A01EF8785686F8A2B3EBD7 /* Shared */,
 				7D3F54FD27665276BBB46D47 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -81,6 +112,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				BBC85AD994C5C5189704717A /* Emo */,
+				D8A01EF8785686F8A2B3EBD7 /* Shared */,
 			);
 			name = Emo;
 			packageProductDependencies = (
@@ -88,6 +120,30 @@
 			);
 			productName = Emo;
 			productReference = EE539BECF01FC065BA671CD9 /* Emo.app */;
+			productType = "com.apple.product-type.application";
+		};
+		FF42F3B240FDFF98FB42FF58 /* EmoPhone */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 208967EBFFA29952C6468907 /* Build configuration list for PBXNativeTarget "EmoPhone" */;
+			buildPhases = (
+				477DB4C1765C840C6104CFDA /* Sources */,
+				748A449879D96B54100C6768 /* Resources */,
+				132A34668CA2B2E7CE8DE49F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BD18BDDD7BAC147AE8813C9B /* EmoPhone */,
+				D8A01EF8785686F8A2B3EBD7 /* Shared */,
+			);
+			name = EmoPhone;
+			packageProductDependencies = (
+				F5F65131B22EBBDE25AA65C4 /* EmoKit */,
+			);
+			productName = EmoPhone;
+			productReference = 97EA302697C4CAA51569DF5C /* EmoPhone.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -100,6 +156,9 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					8D9E5E1B954A6060358D4479 = {
+						ProvisioningStyle = Automatic;
+					};
+					FF42F3B240FDFF98FB42FF58 = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -122,11 +181,19 @@
 			projectRoot = "";
 			targets = (
 				8D9E5E1B954A6060358D4479 /* Emo */,
+				FF42F3B240FDFF98FB42FF58 /* EmoPhone */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		748A449879D96B54100C6768 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		876EF3389F780E6758799512 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,6 +204,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		477DB4C1765C840C6104CFDA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C0BB80FB48AA9018934D7192 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -147,6 +221,34 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		2C1760E5AE1846664B7247C0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Emo;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Emo shows your calendar events and plans your tasks around them.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Emo listens while you dictate a task.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Emo brings your reminders into its backlog so it can schedule them.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Emo turns your dictated task into text, on this iPhone when possible.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.emo.EmoPhone;
+				PRODUCT_NAME = Emo;
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		2C765DB8146F4BF1C26B5EA9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -221,12 +323,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -285,13 +387,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -326,9 +428,46 @@
 			};
 			name = Release;
 		};
+		BA2ACA587DE9123B8A056AFF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Emo;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Emo shows your calendar events and plans your tasks around them.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Emo listens while you dictate a task.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Emo brings your reminders into its backlog so it can schedule them.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Emo turns your dictated task into text, on this iPhone when possible.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.emo.EmoPhone;
+				PRODUCT_NAME = Emo;
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		208967EBFFA29952C6468907 /* Build configuration list for PBXNativeTarget "EmoPhone" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C1760E5AE1846664B7247C0 /* Debug */,
+				BA2ACA587DE9123B8A056AFF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		2DD3B6B52B995FFF1F387989 /* Build configuration list for PBXProject "Emo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -358,6 +497,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		16DD083F1A0BC99B0461E48F /* EmoKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EmoKit;
+		};
+		F5F65131B22EBBDE25AA65C4 /* EmoKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = EmoKit;
 		};

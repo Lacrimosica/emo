@@ -101,7 +101,9 @@ struct TaskChatSheet: View {
             }
             .padding(12)
         }
+        #if os(macOS)
         .frame(width: 460, height: 520)
+        #endif
         .navigationTitle("Ask Emo")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }

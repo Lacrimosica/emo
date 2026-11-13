@@ -189,18 +189,6 @@ private struct TaskRow: View {
     }
 }
 
-struct EnergyBadge: View {
-    let cost: EnergyCost
-
-    var body: some View {
-        Text(cost.label)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(cost.tint.opacity(0.18), in: Capsule())
-            .foregroundStyle(cost.tint)
-    }
-}
 
 #Preview {
     let container = try! EmoStore.makeContainer(.inMemory)

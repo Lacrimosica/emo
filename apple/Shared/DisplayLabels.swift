@@ -83,3 +83,16 @@ extension ListRole {
     /// What Emo does with tasks from such a list, for Settings.
     var schedulingNote: String { isSchedulable ? "Scheduled" : "Kept, not scheduled" }
 }
+
+struct EnergyBadge: View {
+    let cost: EnergyCost
+
+    var body: some View {
+        Text(cost.label)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(cost.tint.opacity(0.18), in: Capsule())
+            .foregroundStyle(cost.tint)
+    }
+}

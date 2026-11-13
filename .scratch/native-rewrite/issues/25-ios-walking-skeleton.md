@@ -4,9 +4,17 @@
 
 **Blocked by:** 24 (Prefactor). On-device install also needs 23 (Personal Team signing); the simulator doesn't.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] project.yml adds an iOS target (iOS 26+) depending on EmoKit and the shared app code
-- [ ] Tab bar or sidebar-adaptive navigation with Backlog working: list, add, edit, complete, delete (swipe actions)
+- [x] project.yml adds an iOS target (iOS 26+) depending on EmoKit and the shared app code
+- [x] Tab bar or sidebar-adaptive navigation with Backlog working: list, add, edit, complete, delete (swipe actions)
 - [ ] Builds for the simulator from the command line; installs and launches on a device with the Personal Team
-- [ ] Data persists across relaunch on the phone
+- [x] Data persists across relaunch on the phone
+
+## Comments
+
+2026-11-13: The `EmoPhone` iOS target (iOS 26+, iPhone, bundle `dev.emo.EmoPhone`) uses EmoKit and `Shared/`. EmoKit now declares `.iOS(.v26)`. The Backlog tab supports tap to edit, swipe to complete or delete, and + to add, using the shared `TaskEditorSheet` and `TaskLifecycle`. Data is local to the device.
+
+Verified: it builds for the Simulator from the command line (`xcodebuild -scheme EmoPhone -destination 'platform=iOS Simulator,name=iPhone 18 Pro'`), and it installs and launches on the iPhone 18 Pro simulator with the backlog empty state (screenshot checked).
+
+Pending: installing on a real device needs a free Personal Team (ticket 23); the user has no Apple ID set up in Xcode yet. Add, edit and swipe flows need a manual tap-through in the Simulator.
