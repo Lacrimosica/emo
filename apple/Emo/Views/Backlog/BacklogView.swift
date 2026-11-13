@@ -7,6 +7,7 @@ struct BacklogView: View {
     @Query(Backlog.openTasksDescriptor) private var tasks: [TaskItem]
 
     @State private var editor: EditorTarget?
+    @State private var isChatting = false
     @State private var pinning: TaskItem?
     @State private var deleting: TaskItem?
     @State private var errorMessage: String?
@@ -50,7 +51,10 @@ struct BacklogView: View {
         }
         .navigationTitle("Backlog")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Ask Emo", systemImage: "sparkles") { isChatting = true }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                    .help("Describe a task and let Emo work out the details (⇧⌘N)")
                 Button("Add Task", systemImage: "plus") { editor = .new }
                     .keyboardShortcut("n")
             }
@@ -62,6 +66,7 @@ struct BacklogView: View {
             }
         }
         .sheet(item: $pinning) { PinTaskSheet(task: $0) }
+        .sheet(isPresented: $isChatting) { TaskChatSheet() }
         .confirmationDialog(
             "Delete “\(deleting?.name ?? "")”?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),

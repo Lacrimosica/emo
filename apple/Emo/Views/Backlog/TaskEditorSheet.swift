@@ -6,6 +6,10 @@ import SwiftUI
 struct TaskEditorSheet: View {
     /// nil to create a new task.
     let task: TaskItem?
+    /// Pre-filled values for a new task (e.g. proposed by the assistant).
+    var initialDraft: TaskDraft? = nil
+    /// Called after a successful save.
+    var onSaved: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -70,6 +74,7 @@ struct TaskEditorSheet: View {
             if on, draft.transitMinutes < 5 { draft.transitMinutes = 20 }
         }
         .onAppear {
+            if task == nil, let initialDraft { draft = initialDraft }
             guard let task else { return }
             draft = TaskDraft(task)
             if let existing = task.deadline {
@@ -89,6 +94,7 @@ struct TaskEditorSheet: View {
                 try Backlog(context: modelContext).add(final)
             }
             dismiss()
+            onSaved()
         } catch {
             errorMessage = "Couldn't save the task: \(error.localizedDescription)"
         }
