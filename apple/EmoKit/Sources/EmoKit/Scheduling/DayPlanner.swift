@@ -53,9 +53,11 @@ public struct PlannableTask: Equatable, Sendable {
     /// Travel time needed before the task's first block of the day (0 = none).
     public var transit: TimeInterval
     public var goal: PlanningGoal?
+    /// When this kind of task tends to happen (ticket 20): placed there first when it's free.
+    public var preferredWindow: PreferredWindow?
 
     public init(id: UUID, remaining: TimeInterval, energyCost: EnergyCost, deadline: Date?, createdAt: Date,
-                transit: TimeInterval = 0, goal: PlanningGoal? = nil) {
+                transit: TimeInterval = 0, goal: PlanningGoal? = nil, preferredWindow: PreferredWindow? = nil) {
         self.id = id
         self.remaining = remaining
         self.energyCost = energyCost
@@ -63,6 +65,7 @@ public struct PlannableTask: Equatable, Sendable {
         self.createdAt = createdAt
         self.transit = transit
         self.goal = goal
+        self.preferredWindow = preferredWindow
     }
 
     /// The deadline planning works to: the task's own, or the end of the week for a week goal.
@@ -139,30 +142,31 @@ public enum DayPlanner {
         var overflow: [PlannableTask] = []
 
         for var task in prioritized(input.tasks, now: input.notBefore) {
-            var i = 0
             // Travel happens once, right before the task's first block of the day. It takes time
             // on the calendar but doesn't count against the energy budget.
             var lead = task.transit
-            while task.remaining > 0, i < spans.count, budgetLeft > 0 {
-                let available = spans[i].duration - lead
-                let chunk = min(task.remaining, available, budgetLeft)
-                let finishesTask = chunk == task.remaining
-                // A chunk must be at least the minimum, unless it's the task's last bit of work.
-                guard chunk >= minChunk || (finishesTask && chunk >= CalendarEngine.minimumDuration) else {
-                    i += 1
-                    continue
+            let window = task.preferredWindow?.interval(on: input.day, calendar: input.calendar)
+            placing: while task.remaining > 0, budgetLeft > 0 {
+                // Free time inside the preferred window first, then the rest of the day in order.
+                for piece in candidates(spans, preferring: window) {
+                    let available = piece.duration - lead
+                    let chunk = min(task.remaining, available, budgetLeft)
+                    let finishesTask = chunk == task.remaining
+                    // A chunk must be at least the minimum, unless it's the task's last bit of work.
+                    guard chunk >= minChunk || (finishesTask && chunk >= CalendarEngine.minimumDuration) else { continue }
+                    let start = piece.start
+                    if lead > 0 {
+                        blocks.append(PlannedBlock(taskID: task.id, start: start, end: start.addingTimeInterval(lead), kind: .transit))
+                    }
+                    let taskStart = start.addingTimeInterval(lead)
+                    blocks.append(PlannedBlock(taskID: task.id, start: taskStart, end: taskStart.addingTimeInterval(chunk)))
+                    lead = 0
+                    task.remaining -= chunk
+                    budgetLeft -= chunk
+                    take(DateInterval(start: start, end: taskStart.addingTimeInterval(chunk)), from: &spans)
+                    continue placing
                 }
-                let start = spans[i].start
-                if lead > 0 {
-                    blocks.append(PlannedBlock(taskID: task.id, start: start, end: start.addingTimeInterval(lead), kind: .transit))
-                }
-                let taskStart = start.addingTimeInterval(lead)
-                blocks.append(PlannedBlock(taskID: task.id, start: taskStart, end: taskStart.addingTimeInterval(chunk)))
-                lead = 0
-                task.remaining -= chunk
-                budgetLeft -= chunk
-                spans[i] = DateInterval(start: taskStart.addingTimeInterval(chunk), end: spans[i].end)
-                if spans[i].duration < CalendarEngine.minimumDuration { spans.remove(at: i) }
+                break   // nothing left that fits
             }
             if task.remaining > 0 { overflow.append(task) }
         }
@@ -192,6 +196,32 @@ public enum DayPlanner {
             let (a, b) = (score($0), score($1))
             return a != b ? a > b : $0.createdAt < $1.createdAt
         }
+    }
+
+    /// Free spans to try, in order: the parts inside `window` first, then every other part by time.
+    /// Without a window, simply the spans in time order.
+    static func candidates(_ spans: [DateInterval], preferring window: DateInterval?) -> [DateInterval] {
+        guard let window else { return spans }
+        var inside: [DateInterval] = [], outside: [DateInterval] = []
+        for span in spans {
+            if let overlap = span.intersection(with: window), overlap.duration >= CalendarEngine.minimumDuration {
+                inside.append(overlap)
+                if overlap.start > span.start { outside.append(DateInterval(start: span.start, end: overlap.start)) }
+                if overlap.end < span.end { outside.append(DateInterval(start: overlap.end, end: span.end)) }
+            } else {
+                outside.append(span)
+            }
+        }
+        return inside + outside.filter { $0.duration >= CalendarEngine.minimumDuration }.sorted { $0.start < $1.start }
+    }
+
+    /// Removes `used` from the free spans, keeping what's left on either side if it's usable.
+    static func take(_ used: DateInterval, from spans: inout [DateInterval]) {
+        guard let index = spans.firstIndex(where: { $0.start <= used.start && used.end <= $0.end }) else { return }
+        let span = spans.remove(at: index)
+        let rest = [DateInterval(start: span.start, end: used.start), DateInterval(start: used.end, end: span.end)]
+            .filter { $0.duration >= CalendarEngine.minimumDuration }
+        spans.insert(contentsOf: rest, at: index)
     }
 
     /// Planning "from now" starts at the next clean mark (14:52:59 → 14:55), never mid-minute.

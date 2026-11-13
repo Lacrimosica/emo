@@ -81,6 +81,11 @@ public struct CalendarEngine {
         // re-planning leaves it alone.
         if event.isPlannedBlock, newStart != event.start || newEnd != event.end {
             event.isLocked = true
+            // ...and tells Emo when this kind of task gets done (ticket 20).
+            if event.kind == .taskBlock, newStart != event.start, let id = event.taskID,
+               let task = try Backlog(context: context).task(withID: id) {
+                try TimeOfDayMemory(context: context).record(.movedByHand, for: task, at: newStart)
+            }
         }
         event.title = newTitle
         if let notes { event.notes = notes }

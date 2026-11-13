@@ -50,6 +50,10 @@ public struct DayPlanning {
         }
         let kept = try keptTaskTime(excluding: replaceable)
         let ongoing = OngoingSchedule(context: context, calendar: calendar)
+        // Learned time-of-day preferences (ticket 20), worked out once per plan.
+        let learned = Dictionary(uniqueKeysWithValues: try TimeOfDayMemory(context: context, calendar: calendar)
+            .learned().map { ($0.group, $0.window) })
+        func window(_ t: TaskItem) -> PreferredWindow? { learned[TimeOfDayMemory.group(for: t)] }
         func plannable(_ t: TaskItem, on d: LocalDay) throws -> PlannableTask? {
             if t.isOngoing {
                 // A session is planned like a normal task of one session's length (ticket 31).
@@ -57,13 +61,13 @@ public struct DayPlanning {
                 return PlannableTask(id: t.id, remaining: due, energyCost: t.energyCost,
                                      deadline: try ongoing.mustFitBy(t, on: d), createdAt: t.createdAt,
                                      transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
-                                     goal: t.goal(on: d, calendar: calendar))
+                                     goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
             }
             return PlannableTask(id: t.id,
                           remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
                           transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
-                          goal: t.goal(on: d, calendar: calendar))
+                          goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
         }
 
         // Day one gets every task it may hold; day two gets day one's overflow plus tasks that

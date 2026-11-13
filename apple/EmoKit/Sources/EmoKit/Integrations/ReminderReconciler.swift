@@ -50,7 +50,7 @@ public struct ReminderReconciler {
             if let link, let task {
                 if reminder.isCompleted {
                     if !task.isCompleted {
-                        try lifecycle.complete(task, now: now)
+                        try lifecycle.complete(task, now: now, learnTiming: false)
                         result.completed += 1
                     }
                 } else if link.contentHash != reminder.contentHash {

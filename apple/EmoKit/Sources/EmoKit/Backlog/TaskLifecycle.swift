@@ -27,9 +27,12 @@ public struct TaskLifecycle {
     /// re-planned. A recurring task gets its next occurrence, available from the next period.
     /// Returns the next occurrence, if one was created.
     @discardableResult
-    public func complete(_ task: TaskItem, now: Date = Date()) throws -> TaskItem? {
+    /// `learnTiming`: whether `now` is when the user actually did it (false for completions that
+    /// arrive from a sync, whose time is only when Emo noticed).
+    public func complete(_ task: TaskItem, now: Date = Date(), learnTiming: Bool = true) throws -> TaskItem? {
         guard !task.isCompleted else { return nil }
         task.completedAt = now
+        if learnTiming { try TimeOfDayMemory(context: context, calendar: calendar).record(.completed, for: task, at: now) }
         try context.save()
         let changed = try engine.clearFutureEvents(forTask: task.id, now: now, calendar: calendar)
 
@@ -82,6 +85,7 @@ public struct TaskLifecycle {
         let session = TaskSession(taskID: task.id, day: day, hours: doneHours > 0 ? doneHours : task.sessionHours, completedAt: now)
         context.insert(session)
         try context.save()
+        try TimeOfDayMemory(context: context, calendar: calendar).record(.completed, for: task, at: now)
         var changed = try engine.clearFutureEvents(forTask: task.id, now: now, onlyOn: day, calendar: calendar)
         changed.insert(day)
         try replan(changed, now: now)
@@ -93,6 +97,12 @@ public struct TaskLifecycle {
     /// Leaves `task` out of `day`: its remaining blocks there go (pinned ones too) and the day is
     /// re-planned without it. It stays in the backlog and can land on the next day.
     public func skip(_ task: TaskItem, on day: LocalDay, now: Date = Date()) throws {
+        // Each skipped block counts against its time of day (ticket 20).
+        let memory = TimeOfDayMemory(context: context, calendar: calendar)
+        for block in try engine.events(forTask: task.id)
+        where block.kind == .taskBlock && block.start >= now && LocalDay(block.start, calendar: calendar) == day {
+            try memory.record(.skipped, for: task, at: block.start)
+        }
         task.skippedDayKey = day.key
         try context.save()
         var changed = try engine.clearFutureEvents(forTask: task.id, now: now, onlyOn: day, calendar: calendar)

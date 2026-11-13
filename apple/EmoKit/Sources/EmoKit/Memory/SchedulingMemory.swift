@@ -107,6 +107,14 @@ public struct SchedulingMemory {
                           basis: closest.count)
     }
 
+    /// How many sized tasks are remembered.
+    public func count() throws -> Int { try context.fetchCount(FetchDescriptor<SizingObservation>()) }
+
+    public func reset() throws {
+        try context.delete(model: SizingObservation.self)
+        try context.save()
+    }
+
     private static let stopwords: Set<String> = [
         "the", "and", "for", "with", "from", "into", "about", "this", "that", "some", "out", "off",
         "get", "make", "do", "to", "of", "on", "in", "at", "a", "an", "my", "our", "your",
