@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// New open reminders become tasks with default sizing, flagged for review, tagged with their
 /// list's role: only next-action and routine lists are scheduled (see `ListRole`). Upstream edits update
-/// only what Reminders owns (title, due date, list), so the user's estimate and energy survive.
+/// only what Reminders owns (title, due date, list, notes), so the user's estimate and energy survive.
 /// Completion upstream completes the task through `TaskLifecycle` (so its plan is repaired);
 /// deletion upstream removes the task if it's still open.
 @MainActor
@@ -61,6 +61,7 @@ public struct ReminderReconciler {
                     try lifecycle.update(task, with: draft, now: now)
                     task.needsReview = stillNeedsReview
                     Self.assign(reminder.list, to: task)
+                    task.notes = Self.notes(reminder.notes)
                     result.updated += 1
                 }
                 link.contentHash = reminder.contentHash
@@ -71,6 +72,7 @@ public struct ReminderReconciler {
                 let task = try backlog.add(Self.draft(for: reminder), now: now)
                 task.needsReview = true
                 Self.assign(reminder.list, to: task)
+                task.notes = Self.notes(reminder.notes)
                 let newLink = ExternalLink(provider: snapshot.provider, externalID: reminder.externalID,
                                            sourceID: reminder.sourceID, contentHash: reminder.contentHash, now: now)
                 newLink.taskID = task.id
@@ -122,6 +124,10 @@ public struct ReminderReconciler {
     private static func assign(_ list: ListAssignment, to task: TaskItem) {
         task.listRole = list.role
         task.listArea = list.area
+    }
+
+    private static func notes(_ raw: String) -> String? {
+        raw.allSatisfy(\.isWhitespace) ? nil : raw
     }
 
     private static func title(_ raw: String) -> String {

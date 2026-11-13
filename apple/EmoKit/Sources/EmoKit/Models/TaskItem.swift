@@ -33,6 +33,9 @@ public final class TaskItem {
     public var listRoleRaw: String?
     /// Area of life of that list ("NA - Home" → "Home").
     public var listArea: String?
+    /// Notes from the integration item (a reminder's notes), raw. Emo reads the keyed lines
+    /// (`ReminderNotes`) and passes the rest to the AI as the user wrote it.
+    public var notes: String?
 
     public init(
         name: String,
@@ -80,6 +83,13 @@ public final class TaskItem {
     public var isSchedulable: Bool { listRole?.isSchedulable ?? true }
 
     public var isCompleted: Bool { completedAt != nil }
+
+    /// The keyed lines and free text of `notes`.
+    public var parsedNotes: ReminderNotes { ReminderNotes(notes ?? "") }
+    /// The parent or section this task sits under (`part of:`), if the notes say.
+    public var partOf: String? { parsedNotes.partOf }
+    /// What the AI needs to size or understand this task (`context:`), if the notes say.
+    public var notesContext: String? { parsedNotes.context }
 
     /// Whether planning may place this task on `day`.
     public func isPlannable(on day: LocalDay) -> Bool {

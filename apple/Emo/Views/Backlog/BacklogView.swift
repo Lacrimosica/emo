@@ -153,6 +153,12 @@ private struct TaskRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.name)
                     .font(.body)
+                if let partOf = task.partOf {
+                    Text(partOf)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .help("Part of “\(partOf)” (from the reminder's notes)")
+                }
                 HStack(spacing: 8) {
                     if let area = task.listArea {
                         Label(area, systemImage: task.listRole?.systemImage ?? "list.bullet")

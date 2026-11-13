@@ -71,7 +71,8 @@ public final class AppleRemindersSource {
                     title: reminder.title ?? "",
                     due: dueDate(reminder.dueDateComponents, calendar: calendar),
                     isCompleted: reminder.isCompleted,
-                    list: assignments[reminder.calendar.calendarIdentifier] ?? ListAssignment(role: .nextAction)
+                    list: assignments[reminder.calendar.calendarIdentifier] ?? ListAssignment(role: .nextAction),
+                    notes: reminder.notes ?? ""
                 )
             }
             continuation.resume(returning: mapped)

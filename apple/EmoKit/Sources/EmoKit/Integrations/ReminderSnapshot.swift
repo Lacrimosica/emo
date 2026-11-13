@@ -9,21 +9,27 @@ public struct ExternalReminder: Equatable, Sendable {
     public var isCompleted: Bool
     /// What the reminder's list is for, read from the list's name.
     public var list: ListAssignment
+    /// The reminder's notes, raw (see `ReminderNotes` for the keyed lines Emo reads).
+    public var notes: String
 
     public init(externalID: String, sourceID: String, title: String, due: Date? = nil, isCompleted: Bool = false,
-                list: ListAssignment = ListAssignment(role: .nextAction)) {
+                list: ListAssignment = ListAssignment(role: .nextAction), notes: String = "") {
         self.externalID = externalID
         self.sourceID = sourceID
         self.title = title
         self.due = due
         self.isCompleted = isCompleted
         self.list = list
+        self.notes = notes
     }
 
-    /// Only the fields Emo mirrors (title, due, list role and area); completion is handled separately.
+    /// Only the fields Emo mirrors (title, due, list role and area, notes); completion is handled
+    /// separately. Notes join the hash only when present, so reminders without notes keep the hash
+    /// they had before notes were imported (and aren't all re-synced once).
     var contentHash: String {
-        [title, due.map { String($0.timeIntervalSinceReferenceDate) } ?? "-", list.role.rawValue, list.area ?? "-"]
-            .joined(separator: "\u{1F}")
+        var parts = [title, due.map { String($0.timeIntervalSinceReferenceDate) } ?? "-", list.role.rawValue, list.area ?? "-"]
+        if !notes.isEmpty { parts.append(notes) }
+        return parts.joined(separator: "\u{1F}")
     }
 }
 

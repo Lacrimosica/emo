@@ -106,7 +106,8 @@ public struct TaskClarifier: Sendable {
     public func next(_ conversation: [ChatTurn]) async throws -> Step {
         let questionsAsked = conversation.filter { $0.role == .assistant }.count
         let mustPropose = questionsAsked >= Self.maxQuestions
-        let instructions = mustPropose ? Self.instructions + "\n" + Self.mustProposeNow : Self.instructions
+        var instructions = EmoPrompt.base + "\n\n" + Self.instructions
+        if mustPropose { instructions += "\n" + Self.mustProposeNow }
 
         let reply = try await provider.generate(ClarifierReply.self, instructions: instructions, conversation: conversation)
 

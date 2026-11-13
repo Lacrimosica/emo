@@ -83,6 +83,9 @@ private struct PhoneTaskRow: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.name)
+                if let partOf = task.partOf {
+                    Text(partOf).font(.subheadline).foregroundStyle(.secondary)
+                }
                 HStack(spacing: 8) {
                     Text(task.category.label)
                     if let deadline = task.deadline {

@@ -27,7 +27,8 @@ final class ScriptedProvider: LLMProvider, @unchecked Sendable {
         let provider = ScriptedProvider([.success(ClarifierReply(question: "How long will it take?"))])
         let step = try await TaskClarifier(provider: provider).next([ChatTurn(.user, "report")])
         #expect(step == .ask("How long will it take?"))
-        #expect(provider.calls.first?.instructions == TaskClarifier.instructions)
+        let instructions = try #require(provider.calls.first?.instructions)
+        #expect(instructions.hasPrefix(EmoPrompt.base) && instructions.contains(TaskClarifier.instructions))
     }
 
     @Test func proposalBecomesADraft() async throws {

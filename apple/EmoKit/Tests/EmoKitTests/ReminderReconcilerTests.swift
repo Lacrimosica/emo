@@ -20,9 +20,9 @@ import Testing
         ReminderSnapshot(provider: "apple-reminders", sources: sources, reminders: reminders)
     }
     func r(_ id: String, _ title: String, due: Date? = nil, done: Bool = false, list: String = "home",
-           named listTitle: String = "NA - Home") -> ExternalReminder {
+           named listTitle: String = "NA - Home", notes: String = "") -> ExternalReminder {
         ExternalReminder(externalID: id, sourceID: list, title: title, due: due, isCompleted: done,
-                         list: .infer(fromTitle: listTitle))
+                         list: .infer(fromTitle: listTitle), notes: notes)
     }
     func open() throws -> [TaskItem] { try Backlog(context: context).openTasks() }
 
@@ -144,6 +144,22 @@ import Testing
         #expect(!task.isSchedulable)
         let result = try reconciler.apply(snap([r("1", "Learn cello", named: "NA - Home")]), now: at(9))
         #expect(result.updated == 1 && task.isSchedulable && task.listRole == .nextAction)
+    }
+
+    @Test func notesAreImportedAndEditingThemInRemindersResyncs() throws {
+        try reconciler.apply(snap([r("1", "Send CV", notes: "part of: Job hunt")]), now: at(8))
+        let task = try #require(try open().first)
+        #expect(task.partOf == "Job hunt")
+        task.estimatedHours = 2   // the user's sizing survives a notes edit
+        let result = try reconciler.apply(snap([r("1", "Send CV", notes: "part of: Job hunt\ncontext: Milan")]), now: at(9))
+        #expect(result.updated == 1)
+        #expect(task.notesContext == "Milan" && task.estimatedHours == 2)
+    }
+
+    @Test func remindersWithoutNotesKeepTheirOldHash() {
+        let reminder = r("1", "Buy stamps")
+        #expect(!reminder.contentHash.contains("\u{1F}\u{1F}"))
+        #expect(reminder.contentHash.split(separator: "\u{1F}", omittingEmptySubsequences: false).count == 4)
     }
 }
 
