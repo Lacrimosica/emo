@@ -23,7 +23,13 @@ enum TaskBlockActions {
         let engine = CalendarEngine(context: context)
         switch action {
         case .completeTask:
-            if let task = task(for: block, in: context) { try lifecycle.complete(task) }
+            guard let task = task(for: block, in: context) else { return }
+            // An ongoing task's block is one session: log it; the task itself stays open.
+            if task.isOngoing {
+                try lifecycle.logSession(task, on: LocalDay(block.start))
+            } else {
+                try lifecycle.complete(task)
+            }
         case .skipToday:
             if let task = task(for: block, in: context) {
                 try lifecycle.skip(task, on: LocalDay(block.start))
@@ -35,10 +41,15 @@ enum TaskBlockActions {
         }
     }
 
+    /// "Done for Today" for an ongoing task's session, "Complete Task" otherwise.
+    static func completeLabel(for block: CalendarEvent, in context: ModelContext) -> String {
+        task(for: block, in: context)?.isOngoing == true ? "Done for Today" : "Complete Task"
+    }
+
     /// Context-menu items for a task block. `onEditTask` opens the task editor.
     @ViewBuilder
     static func menu(for block: CalendarEvent, context: ModelContext, onEditTask: @escaping (TaskItem) -> Void) -> some View {
-        Button("Complete Task", systemImage: "checkmark.circle") { try? perform(.completeTask, on: block, in: context) }
+        Button(completeLabel(for: block, in: context), systemImage: "checkmark.circle") { try? perform(.completeTask, on: block, in: context) }
         Button("Skip for Today", systemImage: "forward") { try? perform(.skipToday, on: block, in: context) }
         Button(block.isLocked ? "Unpin" : "Pin Here", systemImage: block.isLocked ? "pin.slash" : "pin") {
             try? perform(.togglePin, on: block, in: context)

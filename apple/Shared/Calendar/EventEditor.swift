@@ -38,11 +38,11 @@ struct EventEditor: View {
                         .help("Pinned blocks stay put when Emo re-plans")
                     #if os(macOS)
                     HStack {
-                        Button("Complete Task", systemImage: "checkmark.circle") { run(.completeTask) }
+                        Button(TaskBlockActions.completeLabel(for: event, in: modelContext), systemImage: "checkmark.circle") { run(.completeTask) }
                         Button("Skip Today", systemImage: "forward") { run(.skipToday) }
                     }
                     #else
-                    Button("Complete Task", systemImage: "checkmark.circle") { run(.completeTask) }
+                    Button(TaskBlockActions.completeLabel(for: event, in: modelContext), systemImage: "checkmark.circle") { run(.completeTask) }
                     Button("Skip for Today", systemImage: "forward") { run(.skipToday) }
                     #endif
                 }

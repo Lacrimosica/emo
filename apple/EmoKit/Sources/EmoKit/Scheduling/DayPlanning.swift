@@ -49,20 +49,35 @@ public struct DayPlanning {
             replaceable.formUnion(try engine.replaceableTaskBlocks(on: d, from: from(d, now), calendar: calendar).map(\.id))
         }
         let kept = try keptTaskTime(excluding: replaceable)
-        func plannable(_ t: TaskItem) -> PlannableTask {
-            PlannableTask(id: t.id,
+        let ongoing = OngoingSchedule(context: context, calendar: calendar)
+        func plannable(_ t: TaskItem, on d: LocalDay) throws -> PlannableTask? {
+            if t.isOngoing {
+                // A session is planned like a normal task of one session's length (ticket 31).
+                guard let due = try ongoing.timeDue(t, on: d, replaceable: replaceable) else { return nil }
+                return PlannableTask(id: t.id, remaining: due, energyCost: t.energyCost,
+                                     deadline: try ongoing.mustFitBy(t, on: d), createdAt: t.createdAt,
+                                     transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
+                                     goal: t.goal(on: d, calendar: calendar))
+            }
+            return PlannableTask(id: t.id,
                           remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
                           transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
-                          goal: t.goal(on: day, calendar: calendar))
+                          goal: t.goal(on: d, calendar: calendar))
         }
 
         // Day one gets every task it may hold; day two gets day one's overflow plus tasks that
         // weren't allowed on day one (skipped for it, or not available until day two).
-        let firstTasks = tasks.filter { $0.isPlannable(on: day) }.map(plannable)
+        let firstTasks = try tasks.filter { $0.isPlannable(on: day) }.compactMap { try plannable($0, on: day) }
         let first = try planAndWrite(day, tasks: firstTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
-        let laterTasks = tasks.filter { !$0.isPlannable(on: day) && $0.isPlannable(on: next) }.map(plannable)
-        let secondTasks = first.overflow.filter { tasksByID[$0.id]?.isPlannable(on: next) ?? false } + laterTasks
+        // Ongoing tasks are worked out afresh for day two (day one's new blocks now count).
+        let laterTasks = try tasks.filter { t in
+            t.isOngoing ? t.isPlannable(on: next) : !t.isPlannable(on: day) && t.isPlannable(on: next)
+        }.compactMap { try plannable($0, on: next) }
+        let secondTasks = first.overflow.filter { o in
+            guard let t = tasksByID[o.id] else { return false }
+            return !t.isOngoing && t.isPlannable(on: next)
+        } + laterTasks
         let second = try planAndWrite(next, tasks: secondTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
 
         // A today goal that didn't fit is reported, not silently moved to tomorrow.

@@ -20,7 +20,7 @@ struct BlockQuickActions: View {
     var body: some View {
         HStack(spacing: Self.spacing) {
             if event.kind == .taskBlock {
-                icon("Complete Task", "checkmark.circle") { perform(.completeTask) }
+                icon(TaskBlockActions.completeLabel(for: event, in: modelContext), "checkmark.circle") { perform(.completeTask) }
                 icon("Skip for Today", "forward") { perform(.skipToday) }
                 icon(event.isLocked ? "Unpin" : "Pin Here", event.isLocked ? "pin.slash" : "pin") { perform(.togglePin) }
                 icon("Remove Block", "trash") { perform(.removeBlock) }

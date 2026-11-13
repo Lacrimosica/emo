@@ -41,6 +41,11 @@ public final class TaskItem {
     /// `LocalDay.key` of the day that goal was first seen. A goal is about the day (or week) it was
     /// set, so one left over from an earlier day decays to normal priority (see `goal(on:)`).
     public var whenSeenDayKey: String?
+    /// A practice rather than a one-off (ticket 31): done sessions count toward a weekly target
+    /// and the task never completes from them. Has no recurrence.
+    public var isOngoing: Bool = false
+    public var sessionsPerWeek: Int = TaskItem.defaultSessionsPerWeek
+    public var sessionHours: Double = TaskItem.defaultSessionHours
     /// Keyed-line edits waiting to be written to the integration item's notes (JSON of
     /// `[key: value or null]`, see `ReminderNotesWriteBack`). Already applied to `notes`.
     public var pendingNotesEditsJSON: String?
@@ -91,6 +96,35 @@ public final class TaskItem {
     public var isSchedulable: Bool { listRole?.isSchedulable ?? true }
 
     public var isCompleted: Bool { completedAt != nil }
+
+    public static let defaultSessionsPerWeek = 2
+    public static let defaultSessionHours = 1.0
+
+    /// Applies what the notes say to the model: the `when:` goal and `ongoing:` (the notes are the
+    /// source of truth for tasks that come from Reminders).
+    public func applyNotes(seenOn day: LocalDay) {
+        let notes = parsedNotes
+        noteWhenGoal(notes.when, seenOn: day)
+        // Assign only what differs: this runs on every sync, and unchanged writes still dirty the store.
+        func set<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<TaskItem, T>, _ value: T) {
+            if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
+        }
+        if let ongoing = notes.ongoing {
+            let hours = ongoing.sessionMinutes.map { Double($0) / 60 } ?? TaskItem.defaultSessionHours
+            set(\.isOngoing, true)
+            set(\.recurrenceRaw, Recurrence.none.rawValue)
+            set(\.sessionsPerWeek, ongoing.sessionsPerWeek ?? TaskItem.defaultSessionsPerWeek)
+            set(\.sessionHours, hours)
+            set(\.estimatedHours, hours)
+        } else {
+            set(\.isOngoing, false)
+        }
+    }
+
+    /// The `ongoing:` value for this task's target, e.g. "3x/week 1h".
+    public var ongoingNotesValue: String {
+        ReminderNotes.Ongoing(sessionsPerWeek: sessionsPerWeek, sessionMinutes: Int((sessionHours * 60).rounded())).formatted
+    }
 
     /// Records the `when:` goal from the notes. The day it was seen only changes when the goal does,
     /// so re-reading the same notes later doesn't refresh a stale goal.

@@ -3,7 +3,7 @@ import SwiftData
 
 /// Builds the app's SwiftData container. The single place that knows the schema and store location.
 public enum EmoStore {
-    public static let schema = Schema([TaskItem.self, CheckIn.self, CalendarEvent.self, PlannerPreferences.self, ExternalLink.self])
+    public static let schema = Schema([TaskItem.self, CheckIn.self, CalendarEvent.self, PlannerPreferences.self, ExternalLink.self, TaskSession.self])
 
     public enum Location: Sendable {
         /// Default on-disk store in the app's Application Support container.

@@ -5,6 +5,7 @@ import SwiftUI
 struct BacklogView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(Backlog.openTasksDescriptor) private var tasks: [TaskItem]
+    @Query private var sessions: [TaskSession]
 
     @State private var editor: EditorTarget?
     @State private var isChatting = false
@@ -94,7 +95,7 @@ struct BacklogView: View {
     }
 
     private func row(for task: TaskItem) -> some View {
-        TaskRow(task: task, today: .today()) { complete(task) }
+        TaskRow(task: task, today: .today(), doneThisWeek: doneThisWeek(task)) { complete(task) }
             .contentShape(Rectangle())
             .onTapGesture(count: 2) { editor = .edit(task) }
             .contextMenu { menu(for: task) }
@@ -102,7 +103,7 @@ struct BacklogView: View {
                 Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
             }
             .swipeActions(edge: .leading) {
-                Button("Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                Button(task.isOngoing ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
             }
     }
 
@@ -130,7 +131,10 @@ struct BacklogView: View {
     private func menu(for task: TaskItem) -> some View {
         Button("Edit…", systemImage: "pencil") { editor = .edit(task) }
         Button("Schedule at…", systemImage: "pin") { pinning = task }
-        Button("Complete", systemImage: "checkmark.circle") { complete(task) }
+        Button(task.isOngoing ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
+        if task.isOngoing {
+            Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
+        }
         if task.listRole != nil {
             Button("Clarify with Emo…", systemImage: "sparkles") { clarifying = task }
         }
@@ -140,8 +144,22 @@ struct BacklogView: View {
 
     private var lifecycle: TaskLifecycle { TaskLifecycle(context: modelContext) }
 
+    /// Completes a task; for an ongoing one, logs today's session instead.
     private func complete(_ task: TaskItem) {
+        do {
+            if task.isOngoing { try lifecycle.logSession(task) } else { try lifecycle.complete(task) }
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Ends an ongoing task for good (its session history stays).
+    private func stop(_ task: TaskItem) {
         do { try lifecycle.complete(task) } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func doneThisWeek(_ task: TaskItem) -> Int {
+        guard task.isOngoing else { return 0 }
+        let keys = OngoingSchedule.weekKeys(containing: .today())
+        return sessions.filter { $0.taskID == task.id && keys.contains($0.dayKey) }.count
     }
 
     private func delete(_ task: TaskItem) {
@@ -152,6 +170,7 @@ struct BacklogView: View {
 private struct TaskRow: View {
     let task: TaskItem
     let today: LocalDay
+    var doneThisWeek = 0
     let onComplete: () -> Void
 
     var body: some View {
@@ -162,8 +181,8 @@ private struct TaskRow: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Mark as done")
-            .accessibilityLabel("Complete \(task.name)")
+            .help(task.isOngoing ? "Log today's session" : "Mark as done")
+            .accessibilityLabel(task.isOngoing ? "Log a session of \(task.name)" : "Complete \(task.name)")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.name)
@@ -179,6 +198,9 @@ private struct TaskRow: View {
                         Label(area, systemImage: task.listRole?.systemImage ?? "list.bullet")
                     }
                     Text(task.category.label)
+                    if task.isOngoing {
+                        OngoingProgressLabel(task: task, doneThisWeek: doneThisWeek)
+                    }
                     if task.recurrence != .none {
                         Label(task.recurrence.label, systemImage: "repeat")
                     }
@@ -206,9 +228,11 @@ private struct TaskRow: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(task.estimatedHours.hoursLabel)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
+            if !task.isOngoing {
+                Text(task.estimatedHours.hoursLabel)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
             EnergyBadge(cost: task.energyCost)
         }
         .padding(.vertical, 2)

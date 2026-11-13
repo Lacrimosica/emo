@@ -80,6 +80,19 @@ final class ScriptedEnrichmentProvider: LLMProvider, @unchecked Sendable {
         #expect(changes[.partOf] == .some(nil) && changes[.when] == .some(nil))
     }
 
+    @Test func theSchemaIsValidJSONAndCoversEveryKey() throws {
+        let schema = try #require(try JSONSerialization.jsonObject(with: Data(EnrichmentReply.jsonSchema.utf8)) as? [String: Any])
+        let items = ((schema["properties"] as? [String: Any])?["edits"] as? [String: Any])?["items"] as? [String: Any]
+        let required = Set(items?["required"] as? [String] ?? [])
+        #expect(required == ["reminder", "partOf", "context", "when", "ongoing"])
+    }
+
+    @Test func ongoingEditsAlwaysCarryAnExplicitTarget() {
+        #expect(ReminderEnrichment.validated(ProposedNotesEdit(reminder: "1", ongoing: "3 times a week"), title: "Study")[.ongoing] == .some("3x/week 1h"))
+        #expect(ReminderEnrichment.validated(ProposedNotesEdit(reminder: "1", ongoing: "yes"), title: "Study")[.ongoing] == .some("2x/week 1h"))
+        #expect(ReminderEnrichment.validated(ProposedNotesEdit(reminder: "1", ongoing: ""), title: "Study")[.ongoing] == .some(nil))
+    }
+
     @Test func unknownIdsAreIgnored() throws {
         let cv = try reminderTask("Send CV")
         let proposals = ReminderEnrichment.proposals(from: [ProposedNotesEdit(reminder: "7", context: "x"),

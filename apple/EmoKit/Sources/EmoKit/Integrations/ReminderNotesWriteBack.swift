@@ -67,7 +67,7 @@ public struct ReminderNotesWriteBack {
         task.pendingNotesEditsJSON = Self.encode(pending)
         let merged = task.parsedNotes.merging(needed)
         task.notes = merged.allSatisfy(\.isWhitespace) ? nil : merged
-        task.noteWhenGoal(task.parsedNotes.when, seenOn: LocalDay(now, calendar: calendar))
+        task.applyNotes(seenOn: LocalDay(now, calendar: calendar))
         try context.save()
         return needed
     }
@@ -97,7 +97,7 @@ public struct ReminderNotesWriteBack {
                 }
                 // The reminder as saved, merged onto its latest notes, becomes what Emo knows.
                 task.notes = saved.notes.allSatisfy(\.isWhitespace) ? nil : saved.notes
-                task.noteWhenGoal(task.parsedNotes.when, seenOn: LocalDay(now, calendar: calendar))
+                task.applyNotes(seenOn: LocalDay(now, calendar: calendar))
                 task.pendingNotesEditsJSON = nil
                 link.contentHash = saved.contentHash
                 link.lastSeenAt = now
@@ -109,6 +109,11 @@ public struct ReminderNotesWriteBack {
         }
         try context.save()
         return result
+    }
+
+    /// Whether `task` came from a reminder (so its keyed lines live in Reminders).
+    public func hasLinkedReminder(_ task: TaskItem) -> Bool {
+        ((try? link(for: task)) ?? nil) != nil
     }
 
     private func link(for task: TaskItem) throws -> ExternalLink? {

@@ -68,6 +68,26 @@ public struct TaskLifecycle {
         return next
     }
 
+    // MARK: Sessions (ongoing tasks)
+
+    /// Logs a done session of an ongoing task for `day` (its block time there, or one session's
+    /// length). The rest of that day's blocks for it go and the week is re-planned around it;
+    /// the task stays open.
+    @discardableResult
+    public func logSession(_ task: TaskItem, on day: LocalDay? = nil, now: Date = Date()) throws -> TaskSession {
+        let day = day ?? LocalDay(now, calendar: calendar)
+        let blocksToday = try engine.events(forTask: task.id)
+            .filter { $0.kind == .taskBlock && LocalDay($0.start, calendar: calendar) == day && $0.start < now }
+        let doneHours = blocksToday.reduce(0) { $0 + min($1.end, now).timeIntervalSince($1.start) } / 3600
+        let session = TaskSession(taskID: task.id, day: day, hours: doneHours > 0 ? doneHours : task.sessionHours, completedAt: now)
+        context.insert(session)
+        try context.save()
+        var changed = try engine.clearFutureEvents(forTask: task.id, now: now, onlyOn: day, calendar: calendar)
+        changed.insert(day)
+        try replan(changed, now: now)
+        return session
+    }
+
     // MARK: Skip
 
     /// Leaves `task` out of `day`: its remaining blocks there go (pinned ones too) and the day is
@@ -87,6 +107,8 @@ public struct TaskLifecycle {
         try draft.validate()
         let transitMinutes = draft.requiresTransit ? draft.transitMinutes : 0
         let schedulingChanged = draft.estimatedHours != task.estimatedHours
+            || draft.isOngoing != task.isOngoing
+            || (draft.isOngoing && (draft.sessionsPerWeek != task.sessionsPerWeek || draft.sessionHours != task.sessionHours))
             || draft.energyCost != task.energyCost
             || draft.deadline != task.deadline
             || draft.requiresTransit != task.requiresTransit
@@ -100,6 +122,7 @@ public struct TaskLifecycle {
         task.recurrence = draft.recurrence
         task.requiresTransit = draft.requiresTransit
         task.transitMinutes = transitMinutes
+        draft.applyOngoing(to: task)
         task.needsReview = false
         try context.save()
         try engine.renameEvents(forTask: task)

@@ -11,6 +11,10 @@ public struct TaskDraft: Equatable, Sendable {
     public var recurrence: Recurrence
     public var requiresTransit: Bool
     public var transitMinutes: Int
+    /// Ongoing practice with a weekly target (ticket 31); `estimatedHours` is ignored for these.
+    public var isOngoing: Bool = false
+    public var sessionsPerWeek: Int = TaskItem.defaultSessionsPerWeek
+    public var sessionHours: Double = TaskItem.defaultSessionHours
 
     public init(
         name: String = "",
@@ -37,6 +41,20 @@ public struct TaskDraft: Equatable, Sendable {
         self.init(name: task.name, estimatedHours: task.estimatedHours, energyCost: task.energyCost,
                   category: task.category, deadline: task.deadline, recurrence: task.recurrence,
                   requiresTransit: task.requiresTransit, transitMinutes: task.transitMinutes)
+        isOngoing = task.isOngoing
+        sessionsPerWeek = task.sessionsPerWeek
+        sessionHours = task.sessionHours
+    }
+
+    /// Copies the ongoing settings onto `task` (an ongoing task has no recurrence, and its
+    /// estimate is one session).
+    func applyOngoing(to task: TaskItem) {
+        task.isOngoing = isOngoing
+        guard isOngoing else { return }
+        task.sessionsPerWeek = min(max(sessionsPerWeek, 1), 14)
+        task.sessionHours = min(max(sessionHours, 0.25), 12)
+        task.estimatedHours = task.sessionHours
+        task.recurrence = .none
     }
 
     public enum ValidationError: Error, Equatable {
@@ -79,6 +97,7 @@ public struct Backlog {
             transitMinutes: draft.requiresTransit ? draft.transitMinutes : 0,
             createdAt: now
         )
+        draft.applyOngoing(to: task)
         context.insert(task)
         try context.save()
         return task

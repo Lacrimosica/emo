@@ -116,3 +116,16 @@ struct EnergyBadge: View {
             .foregroundStyle(cost.tint)
     }
 }
+
+/// "↻ 2 of 3 this week · 1h" for an ongoing task.
+struct OngoingProgressLabel: View {
+    let task: TaskItem
+    let doneThisWeek: Int
+
+    var body: some View {
+        Label("\(doneThisWeek) of \(task.sessionsPerWeek) this week · \(task.sessionHours.hoursLabel)",
+              systemImage: "arrow.trianglehead.2.clockwise")
+            .foregroundStyle(doneThisWeek >= task.sessionsPerWeek ? Color.green : Color.secondary)
+            .accessibilityLabel("Ongoing: \(doneThisWeek) of \(task.sessionsPerWeek) sessions done this week, \(task.sessionHours.hoursLabel) each")
+    }
+}

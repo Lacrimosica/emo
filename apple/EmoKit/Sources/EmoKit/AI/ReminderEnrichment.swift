@@ -33,9 +33,10 @@ public struct EnrichmentReply: StructuredOutput, Equatable {
                   "reminder": { "type": "string", "description": "The reminder's id from the list, e.g. \\"3\\"." },
                   "partOf": { "anyOf": [{ "type": "string" }, { "type": "null" }], "description": "New 'part of' value, \\"\\" to remove it, null to leave it." },
                   "context": { "anyOf": [{ "type": "string" }, { "type": "null" }], "description": "New 'context' value, \\"\\" to remove it, null to leave it." },
-                  "when": { "anyOf": [{ "type": "string", "enum": ["today", "week", ""] }, { "type": "null" }], "description": "\\"today\\", \\"week\\", \\"\\" to remove it, null to leave it." }
+                  "when": { "anyOf": [{ "type": "string", "enum": ["today", "week", ""] }, { "type": "null" }], "description": "\\"today\\", \\"week\\", \\"\\" to remove it, null to leave it." },
+                  "ongoing": { "anyOf": [{ "type": "string" }, { "type": "null" }], "description": "Weekly target like \\"3x/week 1h\\" to make it ongoing, \\"\\" to stop, null to leave it." }
                 },
-                "required": ["reminder", "partOf", "context", "when"],
+                "required": ["reminder", "partOf", "context", "when", "ongoing"],
                 "additionalProperties": false
               }
             }
@@ -56,12 +57,15 @@ public struct ProposedNotesEdit: Codable, Sendable, Equatable {
     public var context: String?
     @Guide(description: "\"today\", \"week\", empty string to remove it, or leave out to keep it.")
     public var when: String?
+    @Guide(description: "Weekly target like \"3x/week 1h\" to make it ongoing, empty string to stop, or leave out to keep it.")
+    public var ongoing: String?
 
-    public init(reminder: String, partOf: String? = nil, context: String? = nil, when: String? = nil) {
+    public init(reminder: String, partOf: String? = nil, context: String? = nil, when: String? = nil, ongoing: String? = nil) {
         self.reminder = reminder
         self.partOf = partOf
         self.context = context
         self.when = when
+        self.ongoing = ongoing
     }
 }
 
@@ -69,7 +73,6 @@ public struct ProposedNotesEdit: Codable, Sendable, Equatable {
 /// keyed-line edits, Emo validates them, and the user approves each reminder before anything is
 /// written (through `ReminderNotesWriteBack`).
 ///
-/// `ongoing` isn't editable here yet (ticket 31).
 @MainActor
 public struct ReminderEnrichment {
     public enum Step: Equatable {
@@ -99,7 +102,7 @@ public struct ReminderEnrichment {
 
     public static let rules = """
         The user wants to add context to their existing reminders. Below is a numbered list of \
-        them. Propose edits to the keyed lines "part of", "context" and "when" only.
+        them. Propose edits to the keyed lines "part of", "context", "when" and "ongoing" only.
         Rules:
         - Touch as few reminders and keys as possible. Prefer no edit over a guess.
         - Never restate the title in a value, and never rewrite the user's own note text.
@@ -196,6 +199,17 @@ public struct ReminderEnrichment {
         }
         if let raw = edit.partOf, let value = clean(raw, max: maxPartOfLength) { result[.partOf] = .some(value.isEmpty ? nil : value) }
         if let raw = edit.context, let value = clean(raw, max: maxContextLength) { result[.context] = .some(value.isEmpty ? nil : value) }
+        if let raw = edit.ongoing?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            if raw.isEmpty {
+                result[.ongoing] = .some(nil)
+            } else {
+                // Always write an explicit target ("ongoing" alone gets the defaults spelled out).
+                let parsed = ReminderNotes.parseOngoing(raw)
+                let target = ReminderNotes.Ongoing(sessionsPerWeek: parsed.sessionsPerWeek ?? TaskItem.defaultSessionsPerWeek,
+                                                   sessionMinutes: parsed.sessionMinutes ?? Int(TaskItem.defaultSessionHours * 60))
+                result[.ongoing] = .some(target.formatted)
+            }
+        }
         if let raw = edit.when?.trimmingCharacters(in: .whitespaces).lowercased() {
             if raw.isEmpty {
                 result[.when] = .some(nil)

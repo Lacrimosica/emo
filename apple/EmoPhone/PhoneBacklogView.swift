@@ -6,6 +6,7 @@ import SwiftUI
 struct PhoneBacklogView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(Backlog.openTasksDescriptor) private var tasks: [TaskItem]
+    @Query private var sessions: [TaskSession]
 
     @State private var editing: TaskItem?
     @State private var isAdding = false
@@ -29,10 +30,10 @@ struct PhoneBacklogView: View {
                 }
             } else {
                 List(tasks) { task in
-                    Button { editing = task } label: { PhoneTaskRow(task: task) }
+                    Button { editing = task } label: { PhoneTaskRow(task: task, doneThisWeek: doneThisWeek(task)) }
                         .foregroundStyle(.primary)
                         .swipeActions(edge: .leading) {
-                            Button("Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                            Button(task.isOngoing ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
                             if task.looksVague {
                                 Button("Clarify", systemImage: "sparkles") { clarifying = task }.tint(.indigo)
                             }
@@ -42,7 +43,10 @@ struct PhoneBacklogView: View {
                             if task.listRole != nil {
                                 Button("Clarify with Emo", systemImage: "sparkles") { clarifying = task }
                             }
-                            Button("Complete", systemImage: "checkmark.circle") { complete(task) }
+                            Button(task.isOngoing ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
+                            if task.isOngoing {
+                                Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
+                            }
                             Divider()
                             Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
                         }
@@ -94,8 +98,23 @@ struct PhoneBacklogView: View {
         }
     }
 
+    /// Completes a task; for an ongoing one, logs today's session instead.
     private func complete(_ task: TaskItem) {
+        let lifecycle = TaskLifecycle(context: modelContext)
+        do {
+            if task.isOngoing { try lifecycle.logSession(task) } else { try lifecycle.complete(task) }
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Ends an ongoing task for good (its session history stays).
+    private func stop(_ task: TaskItem) {
         do { try TaskLifecycle(context: modelContext).complete(task) } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func doneThisWeek(_ task: TaskItem) -> Int {
+        guard task.isOngoing else { return 0 }
+        let keys = OngoingSchedule.weekKeys(containing: .today())
+        return sessions.filter { $0.taskID == task.id && keys.contains($0.dayKey) }.count
     }
 
     private func delete(_ task: TaskItem) {
@@ -105,6 +124,7 @@ struct PhoneBacklogView: View {
 
 private struct PhoneTaskRow: View {
     let task: TaskItem
+    var doneThisWeek = 0
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -114,7 +134,11 @@ private struct PhoneTaskRow: View {
                     Text(partOf).font(.subheadline).foregroundStyle(.secondary)
                 }
                 HStack(spacing: 8) {
-                    Text(task.category.label)
+                    if task.isOngoing {
+                        OngoingProgressLabel(task: task, doneThisWeek: doneThisWeek)
+                    } else {
+                        Text(task.category.label)
+                    }
                     if let deadline = task.deadline {
                         Label(deadline.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
                     }
@@ -130,7 +154,9 @@ private struct PhoneTaskRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
-                Text(task.estimatedHours.hoursLabel).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                if !task.isOngoing {
+                    Text(task.estimatedHours.hoursLabel).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                }
                 EnergyBadge(cost: task.energyCost)
             }
         }
