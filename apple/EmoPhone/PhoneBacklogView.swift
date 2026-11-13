@@ -10,6 +10,8 @@ struct PhoneBacklogView: View {
     @State private var editing: TaskItem?
     @State private var isAdding = false
     @State private var isChatting = false
+    @State private var isAddingContext = false
+    @State private var clarifying: TaskItem?
     @State private var deleting: TaskItem?
     @State private var errorMessage: String?
 
@@ -31,6 +33,18 @@ struct PhoneBacklogView: View {
                         .foregroundStyle(.primary)
                         .swipeActions(edge: .leading) {
                             Button("Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                            if task.looksVague {
+                                Button("Clarify", systemImage: "sparkles") { clarifying = task }.tint(.indigo)
+                            }
+                        }
+                        .contextMenu {
+                            Button("Edit", systemImage: "pencil") { editing = task }
+                            if task.listRole != nil {
+                                Button("Clarify with Emo", systemImage: "sparkles") { clarifying = task }
+                            }
+                            Button("Complete", systemImage: "checkmark.circle") { complete(task) }
+                            Divider()
+                            Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
                         }
                         .swipeActions(edge: .trailing) {
                             Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
@@ -41,7 +55,14 @@ struct PhoneBacklogView: View {
         .navigationTitle("Backlog")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Ask Emo", systemImage: "sparkles") { isChatting = true }
+                Menu {
+                    Button("New Task", systemImage: "plus.bubble") { isChatting = true }
+                    Button("Add Context to Reminders", systemImage: "text.bubble") { isAddingContext = true }
+                } label: {
+                    Label("Ask Emo", systemImage: "sparkles")
+                } primaryAction: {
+                    isChatting = true
+                }
                 Button("Add Task", systemImage: "plus") { isAdding = true }
             }
         }
@@ -50,6 +71,12 @@ struct PhoneBacklogView: View {
         }
         .sheet(isPresented: $isChatting) {
             NavigationStack { TaskChatSheet() }
+        }
+        .sheet(isPresented: $isAddingContext) {
+            NavigationStack { ContextChatSheet() }
+        }
+        .sheet(item: $clarifying) { task in
+            NavigationStack { ContextChatSheet(scope: task) }
         }
         .sheet(item: $editing) { task in
             NavigationStack { TaskEditorSheet(task: task) }
@@ -93,6 +120,9 @@ private struct PhoneTaskRow: View {
                     }
                     if task.needsReview {
                         Label("Review", systemImage: "exclamationmark.circle").foregroundStyle(.orange)
+                    }
+                    if task.looksVague {
+                        Label("Needs context", systemImage: "sparkles").foregroundStyle(.indigo)
                     }
                 }
                 .font(.caption)

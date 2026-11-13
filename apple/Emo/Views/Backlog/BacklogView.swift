@@ -8,6 +8,9 @@ struct BacklogView: View {
 
     @State private var editor: EditorTarget?
     @State private var isChatting = false
+    @State private var isAddingContext = false
+    /// The task "Clarify with Emo" is open for.
+    @State private var clarifying: TaskItem?
     @State private var pinning: TaskItem?
     @State private var deleting: TaskItem?
     @State private var errorMessage: String?
@@ -51,9 +54,16 @@ struct BacklogView: View {
         .navigationTitle("Backlog")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Ask Emo", systemImage: "sparkles") { isChatting = true }
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
-                    .help("Describe a task and let Emo work out the details (⇧⌘N)")
+                Menu {
+                    Button("New Task…", systemImage: "plus.bubble") { isChatting = true }
+                        .keyboardShortcut("n", modifiers: [.command, .shift])
+                    Button("Add Context to Reminders…", systemImage: "text.bubble") { isAddingContext = true }
+                } label: {
+                    Label("Ask Emo", systemImage: "sparkles")
+                } primaryAction: {
+                    isChatting = true
+                }
+                .help("Describe a task and let Emo work out the details (⇧⌘N); hold for adding context to reminders")
                 Button("Add Task", systemImage: "plus") { editor = .new }
                     .keyboardShortcut("n")
             }
@@ -66,6 +76,8 @@ struct BacklogView: View {
         }
         .sheet(item: $pinning) { PinTaskSheet(task: $0) }
         .sheet(isPresented: $isChatting) { TaskChatSheet() }
+        .sheet(isPresented: $isAddingContext) { ContextChatSheet() }
+        .sheet(item: $clarifying) { ContextChatSheet(scope: $0) }
         .confirmationDialog(
             "Delete “\(deleting?.name ?? "")”?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
@@ -119,6 +131,9 @@ struct BacklogView: View {
         Button("Edit…", systemImage: "pencil") { editor = .edit(task) }
         Button("Schedule at…", systemImage: "pin") { pinning = task }
         Button("Complete", systemImage: "checkmark.circle") { complete(task) }
+        if task.listRole != nil {
+            Button("Clarify with Emo…", systemImage: "sparkles") { clarifying = task }
+        }
         Divider()
         Button("Delete…", systemImage: "trash", role: .destructive) { deleting = task }
     }
@@ -180,6 +195,11 @@ private struct TaskRow: View {
                         Label("Review", systemImage: "exclamationmark.circle")
                             .foregroundStyle(.orange)
                             .help("Imported with a guessed size. Double-click to check the estimate and energy.")
+                    }
+                    if task.looksVague {
+                        Label("Needs context", systemImage: "sparkles")
+                            .foregroundStyle(.indigo)
+                            .help("Emo can't tell much from this title. Right-click › Clarify with Emo to add a note.")
                     }
                 }
                 .font(.caption)

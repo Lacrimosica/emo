@@ -26,9 +26,9 @@ struct TaskChatSheet: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
-                        Bubble(role: .assistant, text: "What do you need to do? Describe it however you like.")
+                        ChatBubble(role: .assistant, text: "What do you need to do? Describe it however you like.")
                         ForEach(conversation) { turn in
-                            Bubble(role: turn.role, text: turn.text).id(turn.id)
+                            ChatBubble(role: turn.role, text: turn.text).id(turn.id)
                         }
                         if isThinking {
                             ProgressView().controlSize(.small).padding(.leading, 8).id("thinking")
@@ -160,7 +160,7 @@ struct TaskChatSheet: View {
     }
 }
 
-private struct Bubble: View {
+struct ChatBubble: View {
     let role: ChatTurn.Role
     let text: String
 

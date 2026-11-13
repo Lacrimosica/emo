@@ -122,6 +122,13 @@ public final class TaskItem {
     /// What the AI needs to size or understand this task (`context:`), if the notes say.
     public var notesContext: String? { parsedNotes.context }
 
+    /// An imported task Emo can't make much of yet: no `context:`, and either still in an inbox
+    /// list or titled in two words or fewer. Offered "Clarify with Emo" in the backlog.
+    public var looksVague: Bool {
+        guard let role = listRole, notesContext == nil, !isCompleted else { return false }
+        return role == .inbox || name.split(whereSeparator: \.isWhitespace).count <= 2
+    }
+
     /// Whether planning may place this task on `day`.
     public func isPlannable(on day: LocalDay) -> Bool {
         guard !isCompleted, isSchedulable, skippedDayKey != day.key else { return false }

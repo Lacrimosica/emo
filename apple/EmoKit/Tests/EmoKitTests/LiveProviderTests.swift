@@ -19,6 +19,26 @@ struct LiveProviderTests {
         }
     }
 
+    @MainActor @Test func appleOnDeviceProposesReminderContext() async throws {
+        let provider = AppleOnDeviceProvider()
+        try #require(await provider.availability() == .available)
+        let container = try EmoStore.makeContainer(.inMemory)
+        let backlog = Backlog(context: container.mainContext)
+        let tasks = try ["Send CV to studios", "Update portfolio site", "Buy dog food"].map { name in
+            let t = try backlog.add(TaskDraft(name: name))
+            t.listRole = .nextAction
+            t.listArea = "Personal"
+            return t
+        }
+        let step = try await ReminderEnrichment(provider: provider).next([
+            ChatTurn(.user, "Sending the CV and the portfolio are part of the job hunt, for product design roles in Milan. The CV should go out this week."),
+        ], candidates: tasks)
+        print("Apple on-device enrichment:", step)
+        if case .propose(let proposals) = step {
+            #expect(!proposals.contains { $0.taskID == tasks[2].id }, "dog food shouldn't be touched")
+        }
+    }
+
     @Test func localOllamaClarifiesATask() async throws {
         let model = ProcessInfo.processInfo.environment["EMO_OLLAMA_MODEL"] ?? OllamaProvider.defaultModel
         let provider = OllamaProvider(model: model)
