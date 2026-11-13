@@ -16,6 +16,7 @@ struct TodayView: View {
     /// Set when "Plan Day" had to ask for a check-in first; planning resumes once it's saved.
     @State private var planAfterCheckIn = false
     @State private var planMessage: String?
+    @State private var isAddingTransit = false
 
     init(day: LocalDay, today: LocalDay, onChangeDay: @escaping (LocalDay) -> Void, onCheckIn: @escaping () -> Void) {
         self.day = day
@@ -68,13 +69,22 @@ struct TodayView: View {
                     .keyboardShortcut("]", modifiers: .command)
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("New Event", systemImage: "calendar.badge.plus", action: newEvent)
-                    .keyboardShortcut("e", modifiers: .command)
+                Menu {
+                    Button("Event", systemImage: "calendar", action: newEvent)
+                    Button("Transit…", systemImage: "car") { isAddingTransit = true }
+                } label: {
+                    Label("New Event", systemImage: "calendar.badge.plus")
+                } primaryAction: {
+                    newEvent()
+                }
+                .keyboardShortcut("e", modifiers: .command)
+                .help("New event (⌘E); hold for transit")
                 Button("Plan Day", systemImage: "wand.and.stars", action: planDay)
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Fill free time with backlog tasks (⌘R)")
             }
         }
+        .sheet(isPresented: $isAddingTransit) { TransitSheet(day: day, today: today) }
         .onChange(of: day) {
             selectedEventID = nil
             editingEventID = nil

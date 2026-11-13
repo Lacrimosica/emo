@@ -112,7 +112,7 @@ import Testing
         // An hour already done yesterday (a past block, not replaceable).
         let yesterday = day.adding(days: -1, calendar: calendar)
         try engine.replacePlannedTaskBlocks(on: yesterday, from: at(0, on: yesterday),
-                                            with: [(task, at(9, on: yesterday), at(10, on: yesterday))],
+                                            with: [(task, at(9, on: yesterday), at(10, on: yesterday), .taskBlock)],
                                             calendar: calendar)
 
         try planning.plan(day, now: at(7))
@@ -127,6 +127,44 @@ import Testing
 
         try planning.plan(day, now: at(7))
         #expect(try taskBlocks(on: day).isEmpty)
+    }
+
+    @Test func transitIsWrittenAndReplacedWithItsTask() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 5, for: day)
+        let errand = try Backlog(context: context).add(
+            TaskDraft(name: "Post office", estimatedHours: 0.5, requiresTransit: true, transitMinutes: 20))
+
+        try planning.plan(day, now: at(7))
+        let first = try engine.events(on: day, calendar: calendar)
+        #expect(first.map(\.kind) == [.transit, .taskBlock])
+        #expect(first.map(\.title) == ["Transit → Post office", "Post office"])
+        #expect(first.map(\.start) == [at(9), at(9, 20)])
+        #expect(first.allSatisfy { $0.taskID == errand.id })
+
+        try planning.plan(day, now: at(7))   // re-plan replaces both, no duplicates
+        #expect(try engine.events(on: day, calendar: calendar).count == 2)
+    }
+
+    @Test func manualTransitIsNeverReplacedByPlanning() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 5, for: day)
+        let manual = try engine.createTransit(start: at(9), duration: 30 * 60, note: "Drive to office")
+        try addTask("Work", hours: 1)
+
+        try planning.plan(day, now: at(7))
+        let events = try engine.events(on: day, calendar: calendar)
+        #expect(events.first?.id == manual.id)
+        #expect(events.first?.title == "Drive to office")
+        #expect(events.last?.start == at(9, 30))   // planned around it
+    }
+
+    @Test func completingATaskRemovesItsTransit() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 5, for: day)
+        let errand = try Backlog(context: context).add(
+            TaskDraft(name: "Pharmacy", estimatedHours: 0.5, requiresTransit: true, transitMinutes: 15))
+        try planning.plan(day, now: at(7))
+
+        try TaskLifecycle(context: context, calendar: calendar).complete(errand, now: at(8))
+        #expect(try engine.events(on: day, calendar: calendar).isEmpty)
     }
 
     @Test func planningAfterDayEndPushesEverythingToTomorrow() throws {

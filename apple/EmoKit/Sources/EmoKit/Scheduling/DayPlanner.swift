@@ -42,20 +42,27 @@ public struct PlannableTask: Equatable, Sendable {
     public var energyCost: EnergyCost
     public var deadline: Date?
     public var createdAt: Date
+    /// Travel time needed before the task's first block of the day (0 = none).
+    public var transit: TimeInterval
 
-    public init(id: UUID, remaining: TimeInterval, energyCost: EnergyCost, deadline: Date?, createdAt: Date) {
+    public init(id: UUID, remaining: TimeInterval, energyCost: EnergyCost, deadline: Date?, createdAt: Date,
+                transit: TimeInterval = 0) {
         self.id = id
         self.remaining = remaining
         self.energyCost = energyCost
         self.deadline = deadline
         self.createdAt = createdAt
+        self.transit = transit
     }
 }
 
 public struct PlannedBlock: Equatable, Sendable {
+    public enum Kind: Sendable { case task, transit }
+
     public var taskID: UUID
     public var start: Date
     public var end: Date
+    public var kind: Kind = .task
 }
 
 public struct DayPlan: Equatable, Sendable {
@@ -63,8 +70,9 @@ public struct DayPlan: Equatable, Sendable {
     /// Tasks that did not fit, with the time still left to place.
     public var overflow: [PlannableTask]
 
+    /// Task work planned (transit excluded).
     public var plannedDuration: TimeInterval {
-        blocks.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
+        blocks.filter { $0.kind == .task }.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) }
     }
 }
 
@@ -116,8 +124,12 @@ public enum DayPlanner {
 
         for var task in prioritized(input.tasks, now: input.notBefore) {
             var i = 0
+            // Travel happens once, right before the task's first block of the day. It takes time
+            // on the calendar but doesn't count against the energy budget.
+            var lead = task.transit
             while task.remaining > 0, i < spans.count, budgetLeft > 0 {
-                let chunk = min(task.remaining, spans[i].duration, budgetLeft)
+                let available = spans[i].duration - lead
+                let chunk = min(task.remaining, available, budgetLeft)
                 let finishesTask = chunk == task.remaining
                 // A chunk must be at least the minimum, unless it's the task's last bit of work.
                 guard chunk >= minChunk || (finishesTask && chunk >= CalendarEngine.minimumDuration) else {
@@ -125,10 +137,15 @@ public enum DayPlanner {
                     continue
                 }
                 let start = spans[i].start
-                blocks.append(PlannedBlock(taskID: task.id, start: start, end: start.addingTimeInterval(chunk)))
+                if lead > 0 {
+                    blocks.append(PlannedBlock(taskID: task.id, start: start, end: start.addingTimeInterval(lead), kind: .transit))
+                }
+                let taskStart = start.addingTimeInterval(lead)
+                blocks.append(PlannedBlock(taskID: task.id, start: taskStart, end: taskStart.addingTimeInterval(chunk)))
+                lead = 0
                 task.remaining -= chunk
                 budgetLeft -= chunk
-                spans[i] = DateInterval(start: start.addingTimeInterval(chunk), end: spans[i].end)
+                spans[i] = DateInterval(start: taskStart.addingTimeInterval(chunk), end: spans[i].end)
                 if spans[i].duration < CalendarEngine.minimumDuration { spans.remove(at: i) }
             }
             if task.remaining > 0 { overflow.append(task) }

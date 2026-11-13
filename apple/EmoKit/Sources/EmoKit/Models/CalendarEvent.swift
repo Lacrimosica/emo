@@ -75,6 +75,11 @@ public final class CalendarEvent {
 
     public var duration: TimeInterval { end.timeIntervalSince(start) }
 
+    /// A block that planning manages for a task: a task block, or the transit leading to one.
+    public var isPlannedBlock: Bool {
+        kind == .taskBlock || (kind == .transit && taskID != nil)
+    }
+
     /// Whether the user may edit this event directly.
     public var isUserEditable: Bool { origin == .local }
 }

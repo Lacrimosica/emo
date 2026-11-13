@@ -72,9 +72,9 @@ public struct CalendarEngine {
         let newEnd = end ?? event.end
         try Self.validate(start: newStart, end: newEnd)
 
-        // Moving or resizing a task block by hand says "this is when I'll do it": pin it so
+        // Moving or resizing a planned block by hand says "this is when I'll do it": pin it so
         // re-planning leaves it alone.
-        if event.kind == .taskBlock, newStart != event.start || newEnd != event.end {
+        if event.isPlannedBlock, newStart != event.start || newEnd != event.end {
             event.isLocked = true
         }
         event.title = newTitle
@@ -106,11 +106,12 @@ public struct CalendarEngine {
 
     // MARK: Planning
 
-    /// Task blocks on `day` that automatic planning may replace: unlocked, Emo-owned, starting at
-    /// or after `from`. Past blocks are history; locked blocks are the user's.
+    /// Planned blocks (task blocks and their transit) on `day` that automatic planning may replace:
+    /// unlocked, Emo-owned, starting at or after `from`. Past blocks are history; locked blocks are
+    /// the user's; manual transit (no task) is never replaced.
     public func replaceableTaskBlocks(on day: LocalDay, from: Date, calendar: Calendar = .current) throws -> [CalendarEvent] {
         try events(on: day, calendar: calendar).filter {
-            $0.kind == .taskBlock && $0.origin == .local && !$0.isLocked
+            $0.isPlannedBlock && $0.origin == .local && !$0.isLocked
                 && $0.start >= from && $0.start < day.end(in: calendar)
         }
     }
@@ -119,7 +120,7 @@ public struct CalendarEngine {
     public func replacePlannedTaskBlocks(
         on day: LocalDay,
         from: Date,
-        with blocks: [(task: TaskItem, start: Date, end: Date)],
+        with blocks: [(task: TaskItem, start: Date, end: Date, kind: CalendarEventKind)],
         calendar: Calendar = .current,
         now: Date = Date()
     ) throws {
@@ -127,17 +128,34 @@ public struct CalendarEngine {
             context.delete(old)
         }
         for block in blocks {
+            precondition(block.kind == .taskBlock || block.kind == .transit, "planning only writes task blocks and transit")
             try Self.validate(start: block.start, end: block.end)
             context.insert(CalendarEvent(
-                title: block.task.name,
+                title: Self.title(for: block.kind, task: block.task),
                 start: block.start,
                 end: block.end,
-                kind: .taskBlock,
+                kind: block.kind,
                 taskID: block.task.id,
                 now: now
             ))
         }
         try context.save()
+    }
+
+    static func title(for kind: CalendarEventKind, task: TaskItem) -> String {
+        kind == .transit ? "Transit → \(task.name)" : task.name
+    }
+
+    /// A standalone transit block the user adds by hand (not tied to a task, never re-planned).
+    @discardableResult
+    public func createTransit(start: Date, duration: TimeInterval, note: String = "", now: Date = Date()) throws -> CalendarEvent {
+        let end = start.addingTimeInterval(duration)
+        try Self.validate(start: start, end: end)
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let event = CalendarEvent(title: trimmed.isEmpty ? "Transit" : trimmed, start: start, end: end, kind: .transit, now: now)
+        context.insert(event)
+        try context.save()
+        return event
     }
 
     // MARK: Task blocks
@@ -204,10 +222,11 @@ public struct CalendarEngine {
         return changed
     }
 
-    /// Keeps task-block titles in step with the task's name.
+    /// Keeps task-block and transit titles in step with the task's name.
     public func renameEvents(forTask task: TaskItem) throws {
-        for event in try events(forTask: task.id) where event.kind == .taskBlock && event.title != task.name {
-            event.title = task.name
+        for event in try events(forTask: task.id) where event.isPlannedBlock {
+            let title = Self.title(for: event.kind, task: task)
+            if event.title != title { event.title = title }
         }
         try context.save()
     }

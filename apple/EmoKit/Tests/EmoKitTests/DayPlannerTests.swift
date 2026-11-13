@@ -158,6 +158,34 @@ import Testing
         #expect(plan.overflow.first?.remaining == 3600)
     }
 
+    @Test func transitIsPlacedBeforeTheFirstBlockOnly() {
+        let a = PlannableTask(id: UUID(), remaining: 2 * 3600, energyCost: .medium, deadline: nil,
+                              createdAt: .distantPast, transit: 30 * 60)
+        // 9:00–10:30 free, busy 10:30–11:00, then free: transit 9:00–9:30, work 9:30–10:30, work 11:00–12:00.
+        let plan = DayPlanner.plan(input(tasks: [a], busy: [span(10, 30, 11, 0)]))
+        #expect(plan.blocks == [
+            PlannedBlock(taskID: a.id, start: at(9), end: at(9, 30), kind: .transit),
+            PlannedBlock(taskID: a.id, start: at(9, 30), end: at(10, 30)),
+            PlannedBlock(taskID: a.id, start: at(11), end: at(12)),
+        ])
+    }
+
+    @Test func transitMustFitTogetherWithAMinimumChunk() {
+        let a = PlannableTask(id: UUID(), remaining: 3600, energyCost: .medium, deadline: nil,
+                              createdAt: .distantPast, transit: 30 * 60)
+        // 9:00–9:45 can't hold 30m transit + 30m minimum; next gap from 10:00.
+        let plan = DayPlanner.plan(input(tasks: [a], busy: [span(9, 45, 10, 0)]))
+        #expect(plan.blocks.first == PlannedBlock(taskID: a.id, start: at(10), end: at(10, 30), kind: .transit))
+    }
+
+    @Test func transitDoesNotCountAgainstTheEnergyBudget() {
+        let a = PlannableTask(id: UUID(), remaining: 2 * 3600, energyCost: .medium, deadline: nil,
+                              createdAt: .distantPast, transit: 3600)
+        let plan = DayPlanner.plan(input(tasks: [a], energy: 1))   // 2h budget
+        #expect(plan.plannedDuration == 2 * 3600)
+        #expect(plan.blocks.map(\.kind) == [.transit, .task])
+    }
+
     @Test func overlappingBusyIntervalsAreMerged() {
         let a = task(1)
         let plan = DayPlanner.plan(input(tasks: [a], busy: [span(9, 0, 10, 30), span(10, 0, 11, 0)]))

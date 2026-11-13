@@ -85,9 +85,12 @@ public struct TaskLifecycle {
     /// Applies `draft` to `task`, renames its blocks, and re-plans days where it has future blocks.
     public func update(_ task: TaskItem, with draft: TaskDraft, now: Date = Date()) throws {
         try draft.validate()
+        let transitMinutes = draft.requiresTransit ? draft.transitMinutes : 0
         let schedulingChanged = draft.estimatedHours != task.estimatedHours
             || draft.energyCost != task.energyCost
             || draft.deadline != task.deadline
+            || draft.requiresTransit != task.requiresTransit
+            || transitMinutes != task.transitMinutes
 
         task.name = draft.trimmedName
         task.estimatedHours = draft.estimatedHours
@@ -95,6 +98,8 @@ public struct TaskLifecycle {
         task.category = draft.category
         task.deadline = draft.deadline
         task.recurrence = draft.recurrence
+        task.requiresTransit = draft.requiresTransit
+        task.transitMinutes = transitMinutes
         try context.save()
         try engine.renameEvents(forTask: task)
 

@@ -50,7 +50,8 @@ public struct DayPlanning {
         func plannable(_ t: TaskItem) -> PlannableTask {
             PlannableTask(id: t.id,
                           remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
-                          energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt)
+                          energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
+                          transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0)
         }
 
         // Day one gets every task it may hold; day two gets day one's overflow plus tasks that
@@ -101,7 +102,9 @@ public struct DayPlanning {
 
         try engine.replacePlannedTaskBlocks(
             on: day, from: from,
-            with: plan.blocks.compactMap { b in tasksByID[b.taskID].map { ($0, b.start, b.end) } },
+            with: plan.blocks.compactMap { b in
+                tasksByID[b.taskID].map { ($0, b.start, b.end, b.kind == .transit ? .transit : .taskBlock) }
+            },
             calendar: calendar, now: now
         )
         return plan

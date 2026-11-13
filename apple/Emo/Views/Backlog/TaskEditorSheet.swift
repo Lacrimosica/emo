@@ -36,6 +36,13 @@ struct TaskEditorSheet: View {
                 ForEach(Recurrence.allCases) { Text($0.label).tag($0) }
             }
 
+            Toggle("Needs travel", isOn: $draft.requiresTransit.animation())
+            if draft.requiresTransit {
+                Stepper(value: $draft.transitMinutes, in: 5...480, step: 5) {
+                    LabeledContent("Travel time", value: "\(draft.transitMinutes) min")
+                }
+            }
+
             Toggle("Deadline", isOn: $hasDeadline)
             if hasDeadline {
                 DatePicker("Due", selection: $deadline)
@@ -58,6 +65,9 @@ struct TaskEditorSheet: View {
                 Button(task == nil ? "Add" : "Save", action: save)
                     .disabled(!draft.isValid)
             }
+        }
+        .onChange(of: draft.requiresTransit) { _, on in
+            if on, draft.transitMinutes < 5 { draft.transitMinutes = 20 }
         }
         .onAppear {
             guard let task else { return }
