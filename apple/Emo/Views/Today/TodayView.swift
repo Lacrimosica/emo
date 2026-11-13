@@ -13,6 +13,9 @@ struct TodayView: View {
     @Query private var checkIns: [CheckIn]
     @State private var selectedEventID: UUID?
     @State private var editingEventID: UUID?
+    /// Set when "Plan Day" had to ask for a check-in first; planning resumes once it's saved.
+    @State private var planAfterCheckIn = false
+    @State private var planMessage: String?
 
     init(day: LocalDay, today: LocalDay, onChangeDay: @escaping (LocalDay) -> Void, onCheckIn: @escaping () -> Void) {
         self.day = day
@@ -40,6 +43,15 @@ struct TodayView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
 
+            if let planMessage {
+                Label(planMessage, systemImage: "wand.and.stars")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+            }
+
             Divider()
 
             DayTimelineView(day: day, selectedEventID: $selectedEventID, editingEventID: $editingEventID)
@@ -55,15 +67,69 @@ struct TodayView: View {
                 Button("Next Day", systemImage: "chevron.right") { onChangeDay(day.adding(days: 1)) }
                     .keyboardShortcut("]", modifiers: .command)
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button("New Event", systemImage: "calendar.badge.plus", action: newEvent)
                     .keyboardShortcut("e", modifiers: .command)
+                Button("Plan Day", systemImage: "wand.and.stars", action: planDay)
+                    .keyboardShortcut("r", modifiers: .command)
+                    .help("Fill free time with backlog tasks (⌘R)")
             }
         }
         .onChange(of: day) {
             selectedEventID = nil
             editingEventID = nil
+            planAfterCheckIn = false
+            planMessage = nil
         }
+        .onChange(of: checkIns.first?.energy) { _, energy in
+            if planAfterCheckIn, energy != nil {
+                planAfterCheckIn = false
+                planDay()
+            }
+        }
+        .task(id: planMessage) {
+            guard planMessage != nil else { return }
+            try? await Task.sleep(for: .seconds(8))
+            withAnimation { planMessage = nil }
+        }
+    }
+
+    private func planDay() {
+        // Today's plan is sized by today's energy, so ask first. Other days fall back to the default.
+        if day == today, checkIns.isEmpty {
+            planAfterCheckIn = true
+            onCheckIn()
+            return
+        }
+        do {
+            if try Backlog(context: modelContext).openTasks().isEmpty {
+                withAnimation { planMessage = "Your backlog is empty. Add some tasks, then plan." }
+                return
+            }
+            let summary = try DayPlanning(context: modelContext).plan(day)
+            withAnimation { planMessage = Self.describe(summary, assumedEnergy: checkIns.isEmpty) }
+        } catch {
+            planMessage = "Couldn't plan the day: \(error.localizedDescription)"
+        }
+    }
+
+    static func describe(_ s: DayPlanning.Summary, assumedEnergy: Bool) -> String {
+        var parts: [String] = []
+        if s.planned.planned == 0, s.spill.planned == 0, s.unplacedTaskCount == 0 {
+            parts.append("Everything in your backlog is already planned.")
+        } else if s.planned.planned > 0 {
+            parts.append("Planned \((s.planned.planned / 3600).hoursLabel) across \(s.planned.taskCount) task\(s.planned.taskCount == 1 ? "" : "s").")
+        } else {
+            parts.append(s.planned.day == LocalDay.today() ? "Nothing more fits today." : "Nothing fits on this day.")
+        }
+        if s.spill.planned > 0 {
+            parts.append("\((s.spill.planned / 3600).hoursLabel) moved to \(s.spill.day.start().formatted(.dateTime.weekday(.wide))).")
+        }
+        if s.unplacedTaskCount > 0 {
+            parts.append("\(s.unplacedTaskCount) task\(s.unplacedTaskCount == 1 ? "" : "s") still in the backlog.")
+        }
+        if assumedEnergy { parts.append("No check-in for this day, so medium energy was assumed.") }
+        return parts.joined(separator: " ")
     }
 
     /// Creates a one-hour event at the next quarter hour today, or 9:00 on other days.

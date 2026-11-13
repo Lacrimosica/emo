@@ -6,7 +6,7 @@ import SwiftData
 @MainActor
 public struct CalendarEngine {
     /// Shortest event the engine accepts.
-    public static let minimumDuration: TimeInterval = 5 * 60
+    public nonisolated static let minimumDuration: TimeInterval = 5 * 60
 
     public enum EditError: Error, Equatable {
         case emptyTitle
@@ -88,6 +88,42 @@ public struct CalendarEngine {
     public func delete(_ event: CalendarEvent) throws {
         guard event.isUserEditable else { throw EditError.notUserEditable }
         context.delete(event)
+        try context.save()
+    }
+
+    // MARK: Planning
+
+    /// Task blocks on `day` that automatic planning may replace: unlocked, Emo-owned, starting at
+    /// or after `from`. Past blocks are history; locked blocks are the user's.
+    public func replaceableTaskBlocks(on day: LocalDay, from: Date, calendar: Calendar = .current) throws -> [CalendarEvent] {
+        try events(on: day, calendar: calendar).filter {
+            $0.kind == .taskBlock && $0.origin == .local && !$0.isLocked
+                && $0.start >= from && $0.start < day.end(in: calendar)
+        }
+    }
+
+    /// Swaps the day's replaceable task blocks for freshly planned ones, in a single save.
+    public func replacePlannedTaskBlocks(
+        on day: LocalDay,
+        from: Date,
+        with blocks: [(task: TaskItem, start: Date, end: Date)],
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) throws {
+        for old in try replaceableTaskBlocks(on: day, from: from, calendar: calendar) {
+            context.delete(old)
+        }
+        for block in blocks {
+            try Self.validate(start: block.start, end: block.end)
+            context.insert(CalendarEvent(
+                title: block.task.name,
+                start: block.start,
+                end: block.end,
+                kind: .taskBlock,
+                taskID: block.task.id,
+                now: now
+            ))
+        }
         try context.save()
     }
 

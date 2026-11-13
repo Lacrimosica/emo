@@ -7,6 +7,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case backlog
 
     var id: String { rawValue }
+    static let storageKey = "sidebarSelection"
 
     var title: String {
         switch self {
@@ -27,7 +28,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var selection: SidebarItem? = .today
+    @AppStorage(SidebarItem.storageKey) private var storedSelection: SidebarItem = .today
     @State private var today = LocalDay.today()
     @State private var displayedDay = LocalDay.today()
     /// The day whose check-in sheet is open, if any.
@@ -37,13 +38,13 @@ struct RootView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selection) { item in
+            List(SidebarItem.allCases, selection: selection) { item in
                 Label(item.title, systemImage: item.systemImage)
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 190)
         } detail: {
-            switch selection {
-            case .today, nil:
+            switch storedSelection {
+            case .today:
                 TodayView(
                     day: displayedDay,
                     today: today,
@@ -64,6 +65,11 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             refreshToday()
         }
+    }
+
+    /// The sidebar's optional selection, backed by app storage (a click on empty space keeps the current item).
+    private var selection: Binding<SidebarItem?> {
+        Binding(get: { storedSelection }, set: { if let new = $0 { storedSelection = new } })
     }
 
     private func refreshToday() {
