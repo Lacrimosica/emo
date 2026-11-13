@@ -44,7 +44,7 @@ struct WeekView: View {
                         .accessibilityHint("Opens this day")
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
             Divider()
 
             ScrollViewReader { proxy in
@@ -102,18 +102,23 @@ private struct DayHeader: View {
     var body: some View {
         let date = day.start()
         VStack(spacing: 2) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(date.formatted(.dateTime.day()))
-                .font(.title3.weight(isToday ? .bold : .regular).monospacedDigit())
-                .foregroundStyle(isToday ? Color.white : Color.primary)
-                .frame(width: 30, height: 30)
-                .background(isToday ? Color.accentColor : .clear, in: Circle())
-            Label(energy.map { "\($0)" } ?? "–", systemImage: "bolt.fill")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(energy == nil ? .tertiary : .secondary)
-                .help(energy.map { "Energy \($0)/5" } ?? "No check-in")
+            HStack(spacing: 4) {
+                Text(date.formatted(.dateTime.weekday(.abbreviated)))
+                    .foregroundStyle(isToday ? Color.accentColor : .secondary)
+                Text(date.formatted(.dateTime.day()))
+                    .fontWeight(isToday ? .bold : .medium)
+                    .foregroundStyle(isToday ? Color.white : Color.primary)
+                    .padding(.horizontal, isToday ? 5 : 0)
+                    .background(isToday ? Color.accentColor : .clear, in: Capsule())
+                if let energy {
+                    Label("\(energy)", systemImage: "bolt.fill")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .help("Energy \(energy)/5")
+                }
+            }
+            .font(.callout.monospacedDigit())
             if !allDay.isEmpty {
                 Text(allDay.count == 1 ? allDay[0] : "\(allDay.count) all-day")
                     .font(.caption2)
