@@ -93,7 +93,7 @@ public struct DayPlanning {
 
         let plan = DayPlanner.plan(.init(
             day: day, calendar: calendar, notBefore: from,
-            busy: kept.map { DateInterval(start: $0.start, end: $0.end) },
+            busy: kept.filter { !$0.isAllDay }.map { DateInterval(start: $0.start, end: $0.end) },
             tasks: tasks,
             energy: try CheckIns(context: context).checkIn(for: day)?.energy,
             alreadyPlanned: alreadyPlanned,

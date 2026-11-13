@@ -11,6 +11,7 @@ struct TodayView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var checkIns: [CheckIn]
+    @Query private var dayEvents: [CalendarEvent]
     @State private var selectedEventID: UUID?
     @State private var editingEventID: UUID?
     /// Set when "Plan Day" had to ask for a check-in first; planning resumes once it's saved.
@@ -24,6 +25,7 @@ struct TodayView: View {
         self.onChangeDay = onChangeDay
         self.onCheckIn = onCheckIn
         self._checkIns = Query(CheckIns.descriptor(for: day))
+        self._dayEvents = Query(CalendarEngine.descriptor(for: day))
     }
 
     var body: some View {
@@ -43,6 +45,32 @@ struct TodayView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+
+            if !allDayEvents.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("All day").font(.caption).foregroundStyle(.secondary)
+                        ForEach(allDayEvents) { event in
+                            Label(event.title, systemImage: event.origin == .linked ? "link" : "sun.max")
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(event.kind.tint.opacity(0.2), in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 8)
+            }
+
+            if pinnedConflictCount > 0 {
+                Label("\(pinnedConflictCount) pinned block\(pinnedConflictCount == 1 ? "" : "s") overlap\(pinnedConflictCount == 1 ? "s" : "") a calendar event. Move or unpin \(pinnedConflictCount == 1 ? "it" : "them") if needed.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
 
             if let planMessage {
                 Label(planMessage, systemImage: "wand.and.stars")
@@ -140,6 +168,17 @@ struct TodayView: View {
         }
         if assumedEnergy { parts.append("No check-in for this day, so medium energy was assumed.") }
         return parts.joined(separator: " ")
+    }
+
+    private var allDayEvents: [CalendarEvent] { dayEvents.filter(\.isAllDay) }
+
+    /// Pinned task blocks that collide with a timed calendar event (pinned blocks are never moved
+    /// automatically, so the user decides).
+    private var pinnedConflictCount: Int {
+        let busy = dayEvents.filter { $0.origin == .linked && !$0.isAllDay }
+        return dayEvents.filter { block in
+            block.kind == .taskBlock && block.isLocked && busy.contains { $0.start < block.end && block.start < $0.end }
+        }.count
     }
 
     /// Creates a one-hour event at the next quarter hour today, or 9:00 on other days.

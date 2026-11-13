@@ -5,19 +5,24 @@ import SwiftUI
 @main
 struct EmoApp: App {
     private let container: ModelContainer
+    @State private var calendarSync: CalendarSyncService
 
     init() {
+        let container: ModelContainer
         do {
             container = try EmoStore.makeContainer()
         } catch {
             fatalError("Could not open Emo's data store: \(error)")
         }
+        self.container = container
+        _calendarSync = State(initialValue: CalendarSyncService(context: container.mainContext))
     }
 
     var body: some Scene {
         // A single main window: Emo is one planner, and this frees ⌘N (File › New Window) for tasks.
         Window("Emo", id: "main") {
             RootView()
+                .environment(calendarSync)
         }
         .modelContainer(container)
         .defaultSize(width: 900, height: 600)
@@ -25,6 +30,7 @@ struct EmoApp: App {
 
         Settings {
             SettingsView()
+                .environment(calendarSync)
         }
         .modelContainer(container)
     }

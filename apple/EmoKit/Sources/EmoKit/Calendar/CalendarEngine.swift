@@ -236,6 +236,34 @@ public struct CalendarEngine {
         try context.save()
     }
 
+    // MARK: Linked events (integration reconciler only)
+
+    func insertLinkedEvent(title: String, start: Date, end: Date, isAllDay: Bool, notes: String, now: Date) -> CalendarEvent {
+        let event = CalendarEvent(title: Self.linkedTitle(title), start: start, end: end, kind: .fixed,
+                                  origin: .linked, notes: notes, now: now)
+        event.isAllDay = isAllDay
+        context.insert(event)
+        return event
+    }
+
+    func updateLinkedEvent(_ event: CalendarEvent, title: String, start: Date, end: Date, isAllDay: Bool, notes: String, now: Date) {
+        event.title = Self.linkedTitle(title)
+        event.start = start
+        event.end = end
+        event.isAllDay = isAllDay
+        event.notes = notes
+        event.updatedAt = now
+    }
+
+    func deleteLinkedEvent(_ event: CalendarEvent) {
+        context.delete(event)
+    }
+
+    private static func linkedTitle(_ title: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Busy" : trimmed
+    }
+
     // MARK: Validation
 
     private static func validated(title: String) throws(EditError) -> String {

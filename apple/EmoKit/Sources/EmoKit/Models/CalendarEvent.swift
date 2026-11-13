@@ -39,6 +39,8 @@ public final class CalendarEvent {
     public var isLocked: Bool = false
     /// The task this event is for, when `kind` is `.taskBlock` or `.transit`.
     public var taskID: UUID?
+    /// All-day events are shown, but don't take up plannable time.
+    public var isAllDay: Bool = false
     public var createdAt: Date = Date()
     public var updatedAt: Date = Date()
 

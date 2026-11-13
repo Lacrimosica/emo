@@ -35,7 +35,8 @@ struct WeekView: View {
             HStack(spacing: 0) {
                 Color.clear.frame(width: Self.labelWidth)
                 ForEach(days, id: \.self) { day in
-                    DayHeader(day: day, isToday: day == today, energy: energy(on: day))
+                    DayHeader(day: day, isToday: day == today, energy: energy(on: day),
+                              allDay: events.filter { $0.isAllDay && $0.start < day.end(in: calendar) && $0.end > day.start(in: calendar) }.map(\.title))
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                         .onTapGesture { onOpenDay(day) }
@@ -55,7 +56,7 @@ struct WeekView: View {
                             DayColumn(
                                 day: day,
                                 isToday: day == today,
-                                events: events.filter { $0.start < day.end(in: calendar) && $0.end > day.start(in: calendar) },
+                                events: events.filter { !$0.isAllDay && $0.start < day.end(in: calendar) && $0.end > day.start(in: calendar) },
                                 calendar: calendar,
                                 onOpen: { onOpenDay(day) }
                             )
@@ -96,6 +97,7 @@ private struct DayHeader: View {
     let day: LocalDay
     let isToday: Bool
     let energy: Int?
+    let allDay: [String]
 
     var body: some View {
         let date = day.start()
@@ -112,6 +114,14 @@ private struct DayHeader: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(energy == nil ? .tertiary : .secondary)
                 .help(energy.map { "Energy \($0)/5" } ?? "No check-in")
+            if !allDay.isEmpty {
+                Text(allDay.count == 1 ? allDay[0] : "\(allDay.count) all-day")
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .padding(.horizontal, 4)
+                    .background(Color.blue.opacity(0.18), in: Capsule())
+                    .help(allDay.joined(separator: "\n"))
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(date.formatted(date: .complete, time: .omitted))\(energy.map { ", energy \($0) of 5" } ?? "")")

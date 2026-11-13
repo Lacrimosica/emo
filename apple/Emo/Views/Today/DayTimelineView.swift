@@ -57,8 +57,8 @@ struct DayTimelineView: View {
                             }
                             .onTapGesture { selectedEventID = nil; isFocused = true }
 
-                        let slots = TimelineLayout.slots(for: events.map { (id: $0.id, start: $0.start, end: $0.end) })
-                        ForEach(events) { event in
+                        let slots = TimelineLayout.slots(for: timedEvents.map { (id: $0.id, start: $0.start, end: $0.end) })
+                        ForEach(timedEvents) { event in
                             let slot = slots[event.id] ?? .init(column: 0, columnCount: 1)
                             let width = columnsWidth / CGFloat(slot.columnCount)
                             EventBlock(
@@ -117,6 +117,9 @@ struct DayTimelineView: View {
             Button("Delete", systemImage: "trash", role: .destructive) { try? engine.delete(event) }
         }
     }
+
+    /// All-day events are shown in a strip above the timeline (TodayView), not as 24-hour blocks.
+    private var timedEvents: [CalendarEvent] { events.filter { !$0.isAllDay } }
 
     private func editingBinding(for event: CalendarEvent) -> Binding<Bool> {
         Binding(
@@ -239,6 +242,9 @@ struct EventBlock: View {
                 if event.kind == .taskBlock, event.isLocked {
                     Image(systemName: "pin.fill").font(.caption2).accessibilityHidden(true)
                 }
+                if event.origin == .linked {
+                    Image(systemName: "link").font(.caption2).accessibilityHidden(true)
+                }
                 Text(event.title)
                     .font(.callout.weight(.semibold))
                     .lineLimit(height > 36 ? 2 : 1)
@@ -279,7 +285,8 @@ struct EventBlock: View {
         .accessibilityLabel("\(event.title)\(event.kind == .taskBlock && event.isLocked ? ", pinned" : ""), \(event.start.formatted(date: .omitted, time: .shortened)) to \(event.end.formatted(date: .omitted, time: .shortened))")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect(); onEdit() }
-        .accessibilityHint(editable ? "Double-click to edit" : "From an integration; read-only")
+        .accessibilityHint(editable ? "Double-click to edit" : "From Calendar; read-only")
+        .help(event.origin == .linked ? "From Calendar. Change it in Calendar.app." : "")
     }
 
     private func resizeHandle(_ edge: Edge) -> some View {

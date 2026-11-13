@@ -12,6 +12,9 @@ struct SettingsView: View {
             Tab("AI", systemImage: "sparkles") {
                 AISettingsView()
             }
+            Tab("Integrations", systemImage: "link") {
+                IntegrationsSettingsView()
+            }
         }
         .frame(width: 460)
     }
