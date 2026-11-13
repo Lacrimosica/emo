@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 (Integration seam + Apple Calendar inbound)
 
-**Status:** done (pending manual check with real reminders, see Comments)
+**Status:** done
 
 - [x] EventKit Reminders adapter built on the same integration seam (change sets → engine)
 - [x] Settings → Integrations lists Reminders lists with toggles
@@ -24,3 +24,5 @@ Bugs found when the user enabled the integrations:
 1. **Crash on launch:** the `fetchReminders` completion was written inside a `@MainActor` class, so it inherited main-actor isolation. EventKit calls it on a background queue, and the runtime isolation check trapped (EXC_BREAKPOINT in `_swift_task_checkIsolatedSwift`). The completion is now built in a `nonisolated static` function.
 2. **Calendar enabled with no calendars selected:** the store didn't list calendars right after access was granted. Fixed with `store.reset()` after granting, plus auto-selecting everything on the first non-empty load until the user has chosen (the `chosen` flag).
 3. **Silent idle state:** ad-hoc signing changes the app's identity on every rebuild, so macOS forgets the Calendar and Reminders grants. An enabled integration with "not determined" access now asks again (at launch and when the Integrations tab opens). The durable fix for development is signing with an Apple Development team.
+
+2026-11-13 (verified on real data): after the user granted access, Calendar imported 49 events. Reminders imported nothing until a relaunch, then 60 reminders became review tasks. Cause: in the running process `EKEventStore.authorizationStatus(for: .reminder)` kept reporting the pre-grant status even though the request returned YES (status 3 in the log), and the service re-read that status. Both sync services now remember a grant from their own request for the session.

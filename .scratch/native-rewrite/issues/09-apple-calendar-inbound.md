@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Auto-scheduler)
 
-**Status:** done (pending manual check with real calendars, see Comments)
+**Status:** done
 
 - [x] Integration adapter protocol in EmoKit: adapters emit change sets and never write the internal calendar directly
 - [x] External link records (provider, external id, source calendar, content hash, last seen) let the engine distinguish moved vs. deleted vs. new
@@ -28,3 +28,5 @@
 - **Tests:** 12 reconciler tests with fake snapshots (add, idempotent re-apply, move, remove, delete then re-add, window history, source deselect, collision re-plan, unplanned days, pinned conflict, all-day, read-only). The store migration was verified on the real data.
 
 Manual check: enable Settings › Integrations › Apple Calendar (approve the macOS prompt), confirm events appear, then edit, move and delete one in Calendar.app and watch Emo update within seconds.
+
+2026-11-13: Verified on real data: 49 events imported from the user's calendars.

@@ -31,6 +31,9 @@ final class CalendarSyncService {
     private let context: ModelContext
     private let defaults: UserDefaults
     private var debounce: Task<Void, Never>?
+    /// `EKEventStore.authorizationStatus` can keep reporting the pre-grant status until the app
+    /// relaunches (seen with Reminders), so a grant from our own request is remembered here.
+    private var grantedThisSession = false
 
     init(context: ModelContext, defaults: UserDefaults = .standard) {
         self.context = context
@@ -47,7 +50,7 @@ final class CalendarSyncService {
     /// ad-hoc-signed app, which macOS treats as a new app), ask again rather than sit idle.
     func ensureAccess() async {
         guard isEnabled else { return }
-        if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+        if !grantedThisSession, EKEventStore.authorizationStatus(for: .event) == .notDetermined {
             await setEnabled(true)
         } else {
             reloadCalendars()
@@ -60,6 +63,7 @@ final class CalendarSyncService {
         if on {
             do {
                 hasAccess = try await source.requestAccess()
+                grantedThisSession = hasAccess
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -93,8 +97,8 @@ final class CalendarSyncService {
     }
 
     func reloadCalendars() {
-        hasAccess = AppleCalendarSource.hasAccess
-        accessDenied = AppleCalendarSource.accessDenied
+        hasAccess = grantedThisSession || AppleCalendarSource.hasAccess
+        accessDenied = !hasAccess && AppleCalendarSource.accessDenied
         calendars = hasAccess ? source.calendars() : []
         // Start with every calendar the first time any are visible; the user can narrow it.
         if isEnabled, !calendars.isEmpty, !defaults.bool(forKey: Key.chosen) {
@@ -104,7 +108,7 @@ final class CalendarSyncService {
 
     /// Pulls a fresh snapshot of the next 14 days and reconciles it.
     func sync() {
-        guard isEnabled, AppleCalendarSource.hasAccess else { return }
+        guard isEnabled, hasAccess else { return }
         let snapshot = source.snapshot(selected: selectedCalendars, from: .today())
         run { try CalendarReconciler(context: context).apply(snapshot) }
     }

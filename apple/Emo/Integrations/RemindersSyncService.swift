@@ -30,6 +30,9 @@ final class RemindersSyncService {
     private let context: ModelContext
     private let defaults: UserDefaults
     private var debounce: Task<Void, Never>?
+    /// `EKEventStore.authorizationStatus` can keep reporting the pre-grant status until the app
+    /// relaunches (seen with Reminders), so a grant from our own request is remembered here.
+    private var grantedThisSession = false
 
     init(context: ModelContext, defaults: UserDefaults = .standard) {
         self.context = context
@@ -46,7 +49,7 @@ final class RemindersSyncService {
     /// ad-hoc-signed app, which macOS treats as a new app), ask again rather than sit idle.
     func ensureAccess() async {
         guard isEnabled else { return }
-        if EKEventStore.authorizationStatus(for: .reminder) == .notDetermined {
+        if !grantedThisSession, EKEventStore.authorizationStatus(for: .reminder) == .notDetermined {
             await setEnabled(true)
         } else {
             reloadLists()
@@ -56,7 +59,12 @@ final class RemindersSyncService {
 
     func setEnabled(_ on: Bool) async {
         if on {
-            do { hasAccess = try await source.requestAccess() } catch { errorMessage = error.localizedDescription }
+            do {
+                hasAccess = try await source.requestAccess()
+                grantedThisSession = hasAccess
+            } catch {
+                errorMessage = error.localizedDescription
+            }
             accessDenied = AppleRemindersSource.accessDenied
             guard hasAccess else { return }
             isEnabled = true
@@ -87,8 +95,8 @@ final class RemindersSyncService {
     }
 
     func reloadLists() {
-        hasAccess = AppleRemindersSource.hasAccess
-        accessDenied = AppleRemindersSource.accessDenied
+        hasAccess = grantedThisSession || AppleRemindersSource.hasAccess
+        accessDenied = !hasAccess && AppleRemindersSource.accessDenied
         lists = hasAccess ? source.lists() : []
         if isEnabled, !lists.isEmpty, !defaults.bool(forKey: Key.chosen) {
             setSelected(Set(lists.map(\.id)))
@@ -96,7 +104,7 @@ final class RemindersSyncService {
     }
 
     func sync() {
-        guard isEnabled, AppleRemindersSource.hasAccess else { return }
+        guard isEnabled, hasAccess else { return }
         let selected = selectedLists
         Task {
             let snapshot = await source.snapshot(selected: selected)
