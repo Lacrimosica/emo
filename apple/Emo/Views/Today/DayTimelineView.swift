@@ -16,6 +16,7 @@ struct DayTimelineView: View {
     @Query private var events: [CalendarEvent]
     /// Keyboard focus, so Delete / Return / Escape reach the timeline after a click.
     @FocusState private var isFocused: Bool
+    @State private var editingTask: TaskItem?
 
     static let hourHeight: CGFloat = 56
     static let labelWidth: CGFloat = 52
@@ -75,6 +76,7 @@ struct DayTimelineView: View {
                                 onMove: { delta in move(event, by: delta) },
                                 onResize: { edge, delta in resize(event, edge: edge, by: delta) }
                             )
+                            .contextMenu { menu(for: event) }
                         }
 
                         if day == LocalDay.today(calendar: calendar) {
@@ -101,6 +103,18 @@ struct DayTimelineView: View {
             guard selectedEventID != nil else { return .ignored }
             selectedEventID = nil
             return .handled
+        }
+        .sheet(item: $editingTask) { TaskEditorSheet(task: $0) }
+    }
+
+    @ViewBuilder
+    private func menu(for event: CalendarEvent) -> some View {
+        if event.kind == .taskBlock, event.isUserEditable {
+            TaskBlockActions.menu(for: event, context: modelContext) { editingTask = $0 }
+        } else if event.isUserEditable {
+            Button("Edit…", systemImage: "pencil") { selectedEventID = event.id; editingEventID = event.id }
+            Divider()
+            Button("Delete", systemImage: "trash", role: .destructive) { try? engine.delete(event) }
         }
     }
 
@@ -221,9 +235,14 @@ struct EventBlock: View {
         let height = max(frame.height - topOffset + bottomOffset, 14)
 
         VStack(alignment: .leading, spacing: 1) {
-            Text(event.title)
-                .font(.callout.weight(.semibold))
-                .lineLimit(height > 36 ? 2 : 1)
+            HStack(spacing: 4) {
+                if event.kind == .taskBlock, event.isLocked {
+                    Image(systemName: "pin.fill").font(.caption2).accessibilityHidden(true)
+                }
+                Text(event.title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(height > 36 ? 2 : 1)
+            }
             if height > 36 {
                 Text("\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2.monospacedDigit())
@@ -257,7 +276,7 @@ struct EventBlock: View {
         }
         .offset(x: frame.minX, y: frame.minY + moveOffset + topOffset)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(event.title), \(event.start.formatted(date: .omitted, time: .shortened)) to \(event.end.formatted(date: .omitted, time: .shortened))")
+        .accessibilityLabel("\(event.title)\(event.kind == .taskBlock && event.isLocked ? ", pinned" : ""), \(event.start.formatted(date: .omitted, time: .shortened)) to \(event.end.formatted(date: .omitted, time: .shortened))")
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { onSelect(); onEdit() }
         .accessibilityHint(editable ? "Double-click to edit" : "From an integration; read-only")

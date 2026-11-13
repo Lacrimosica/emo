@@ -46,14 +46,19 @@ public struct DayPlanning {
             replaceable.formUnion(try engine.replaceableTaskBlocks(on: d, from: from(d, now), calendar: calendar).map(\.id))
         }
         let kept = try keptTaskTime(excluding: replaceable)
-        let plannable = tasks.map { t in
+        func plannable(_ t: TaskItem) -> PlannableTask {
             PlannableTask(id: t.id,
                           remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt)
         }
 
-        let first = try planAndWrite(day, tasks: plannable, replaceable: replaceable, tasksByID: tasksByID, now: now)
-        let second = try planAndWrite(next, tasks: first.overflow, replaceable: replaceable, tasksByID: tasksByID, now: now)
+        // Day one gets every task it may hold; day two gets day one's overflow plus tasks that
+        // weren't allowed on day one (skipped for it, or not available until day two).
+        let firstTasks = tasks.filter { $0.isPlannable(on: day) }.map(plannable)
+        let first = try planAndWrite(day, tasks: firstTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
+        let laterTasks = tasks.filter { !$0.isPlannable(on: day) && $0.isPlannable(on: next) }.map(plannable)
+        let secondTasks = first.overflow.filter { tasksByID[$0.id]?.isPlannable(on: next) ?? false } + laterTasks
+        let second = try planAndWrite(next, tasks: secondTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
 
         return Summary(planned: result(first, day), spill: result(second, next),
                        unplacedTaskCount: second.overflow.count)

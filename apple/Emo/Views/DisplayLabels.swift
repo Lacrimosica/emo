@@ -42,3 +42,13 @@ extension Double {
         }
     }
 }
+
+extension Recurrence {
+    var label: String {
+        switch self {
+        case .none: "Never"
+        case .daily: "Daily"
+        case .weekly: "Weekly"
+        }
+    }
+}

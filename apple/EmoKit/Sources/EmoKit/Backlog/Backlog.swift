@@ -8,19 +8,28 @@ public struct TaskDraft: Equatable, Sendable {
     public var energyCost: EnergyCost
     public var category: TaskCategory
     public var deadline: Date?
+    public var recurrence: Recurrence
 
     public init(
         name: String = "",
         estimatedHours: Double = 1,
         energyCost: EnergyCost = .medium,
         category: TaskCategory = .personal,
-        deadline: Date? = nil
+        deadline: Date? = nil,
+        recurrence: Recurrence = .none
     ) {
         self.name = name
         self.estimatedHours = estimatedHours
         self.energyCost = energyCost
         self.category = category
         self.deadline = deadline
+        self.recurrence = recurrence
+    }
+
+    /// A draft pre-filled from an existing task, for editing.
+    public init(_ task: TaskItem) {
+        self.init(name: task.name, estimatedHours: task.estimatedHours, energyCost: task.energyCost,
+                  category: task.category, deadline: task.deadline, recurrence: task.recurrence)
     }
 
     public enum ValidationError: Error, Equatable {
@@ -55,12 +64,19 @@ public struct Backlog {
             estimatedHours: draft.estimatedHours,
             energyCost: draft.energyCost,
             category: draft.category,
+            recurrence: draft.recurrence,
             deadline: draft.deadline,
             createdAt: now
         )
         context.insert(task)
         try context.save()
         return task
+    }
+
+    public func task(withID id: UUID) throws -> TaskItem? {
+        var descriptor = FetchDescriptor<TaskItem>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
     /// Open tasks, newest first.

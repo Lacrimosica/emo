@@ -2,7 +2,11 @@ import EmoKit
 import SwiftData
 import SwiftUI
 
-struct AddTaskSheet: View {
+/// Creates a new task, or edits an existing one (re-planning the days it's scheduled on).
+struct TaskEditorSheet: View {
+    /// nil to create a new task.
+    let task: TaskItem?
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -28,6 +32,10 @@ struct AddTaskSheet: View {
                 ForEach(TaskCategory.allCases) { Text($0.label).tag($0) }
             }
 
+            Picker("Repeats", selection: $draft.recurrence) {
+                ForEach(Recurrence.allCases) { Text($0.label).tag($0) }
+            }
+
             Toggle("Deadline", isOn: $hasDeadline)
             if hasDeadline {
                 DatePicker("Due", selection: $deadline)
@@ -41,14 +49,22 @@ struct AddTaskSheet: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 420)
-        .navigationTitle("New Task")
+        .navigationTitle(task == nil ? "New Task" : "Edit Task")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Add", action: save)
+                Button(task == nil ? "Add" : "Save", action: save)
                     .disabled(!draft.isValid)
+            }
+        }
+        .onAppear {
+            guard let task else { return }
+            draft = TaskDraft(task)
+            if let existing = task.deadline {
+                hasDeadline = true
+                deadline = existing
             }
         }
     }
@@ -57,7 +73,11 @@ struct AddTaskSheet: View {
         var final = draft
         final.deadline = hasDeadline ? deadline : nil
         do {
-            try Backlog(context: modelContext).add(final)
+            if let task {
+                try TaskLifecycle(context: modelContext).update(task, with: final)
+            } else {
+                try Backlog(context: modelContext).add(final)
+            }
             dismiss()
         } catch {
             errorMessage = "Couldn't save the task: \(error.localizedDescription)"
@@ -66,6 +86,6 @@ struct AddTaskSheet: View {
 }
 
 #Preview {
-    AddTaskSheet()
+    TaskEditorSheet(task: nil)
         .modelContainer(try! EmoStore.makeContainer(.inMemory))
 }

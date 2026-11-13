@@ -21,6 +21,11 @@ public final class TaskItem {
     public var transitMinutes: Int = 0
     public var createdAt: Date = Date()
     public var completedAt: Date?
+    /// `LocalDay.key` of a day the user skipped this task for; planning leaves it out of that day.
+    public var skippedDayKey: String?
+    /// `LocalDay.key` of the first day this task may be planned (set on the next occurrence of a
+    /// recurring task, so it doesn't land again on the day the previous one was completed).
+    public var availableFromDayKey: String?
 
     public init(
         name: String,
@@ -60,4 +65,11 @@ public final class TaskItem {
     }
 
     public var isCompleted: Bool { completedAt != nil }
+
+    /// Whether planning may place this task on `day`.
+    public func isPlannable(on day: LocalDay) -> Bool {
+        guard !isCompleted, skippedDayKey != day.key else { return false }
+        if let from = availableFromDayKey, day.key < from { return false }
+        return true
+    }
 }

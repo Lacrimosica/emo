@@ -72,10 +72,23 @@ public struct CalendarEngine {
         let newEnd = end ?? event.end
         try Self.validate(start: newStart, end: newEnd)
 
+        // Moving or resizing a task block by hand says "this is when I'll do it": pin it so
+        // re-planning leaves it alone.
+        if event.kind == .taskBlock, newStart != event.start || newEnd != event.end {
+            event.isLocked = true
+        }
         event.title = newTitle
         if let notes { event.notes = notes }
         event.start = newStart
         event.end = newEnd
+        event.updatedAt = now
+        try context.save()
+    }
+
+    /// Pins (locks) or unpins a task block. Pinned blocks survive re-planning.
+    public func setPinned(_ event: CalendarEvent, _ pinned: Bool, now: Date = Date()) throws {
+        guard event.isUserEditable else { throw EditError.notUserEditable }
+        event.isLocked = pinned
         event.updatedAt = now
         try context.save()
     }
@@ -123,6 +136,78 @@ public struct CalendarEngine {
                 taskID: block.task.id,
                 now: now
             ))
+        }
+        try context.save()
+    }
+
+    // MARK: Task blocks
+
+    /// Every event belonging to a task (task blocks and, later, transit), earliest first.
+    public func events(forTask taskID: UUID) throws -> [CalendarEvent] {
+        let id: UUID? = taskID
+        return try context.fetch(FetchDescriptor<CalendarEvent>(
+            predicate: #Predicate { $0.taskID == id },
+            sortBy: [SortDescriptor(\.start)]
+        ))
+    }
+
+    /// Places a pinned block for `task` at a time the user chose.
+    @discardableResult
+    public func pinTaskBlock(_ task: TaskItem, start: Date, end: Date, now: Date = Date()) throws -> CalendarEvent {
+        try Self.validate(start: start, end: end)
+        let event = CalendarEvent(title: task.name, start: start, end: end, kind: .taskBlock,
+                                  isLocked: true, taskID: task.id, now: now)
+        context.insert(event)
+        try context.save()
+        return event
+    }
+
+    /// Removes a task's events that haven't started by `now`, and cuts one in progress short at
+    /// `now` (or removes it, if what's left would be under the minimum). Returns the local days
+    /// whose plan changed. Past events stay as history.
+    @discardableResult
+    public func clearFutureEvents(
+        forTask taskID: UUID,
+        now: Date,
+        onlyOn day: LocalDay? = nil,
+        includingPinned: Bool = true,
+        calendar: Calendar = .current
+    ) throws -> Set<LocalDay> {
+        var changed: Set<LocalDay> = []
+        for event in try events(forTask: taskID) where event.end > now {
+            // The part of the event that's still ahead starts on this day.
+            let remainingDay = LocalDay(max(event.start, now), calendar: calendar)
+            if let day, remainingDay != day { continue }
+            if !includingPinned, event.isLocked { continue }
+            changed.insert(remainingDay)
+            if event.start < now, now.timeIntervalSince(event.start) >= Self.minimumDuration {
+                event.end = now
+                event.updatedAt = now
+            } else {
+                context.delete(event)
+            }
+        }
+        try context.save()
+        return changed
+    }
+
+    /// Removes every event of a task, past ones included (used when the task itself is deleted).
+    /// Returns the local days of the events that hadn't ended yet.
+    @discardableResult
+    public func deleteAllEvents(forTask taskID: UUID, now: Date, calendar: Calendar = .current) throws -> Set<LocalDay> {
+        var changed: Set<LocalDay> = []
+        for event in try events(forTask: taskID) {
+            if event.end > now { changed.insert(LocalDay(max(event.start, now), calendar: calendar)) }
+            context.delete(event)
+        }
+        try context.save()
+        return changed
+    }
+
+    /// Keeps task-block titles in step with the task's name.
+    public func renameEvents(forTask task: TaskItem) throws {
+        for event in try events(forTask: task.id) where event.kind == .taskBlock && event.title != task.name {
+            event.title = task.name
         }
         try context.save()
     }

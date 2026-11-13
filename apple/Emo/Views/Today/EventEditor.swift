@@ -13,16 +13,31 @@ struct EventEditor: View {
     @State private var start = Date()
     @State private var end = Date()
     @State private var notes = ""
+    @State private var isPinned = false
     @State private var errorMessage: String?
+
+    private var isTaskBlock: Bool { event.kind == .taskBlock }
 
     var body: some View {
         Form {
-            TextField("Title", text: $title)
-                .font(.headline)
+            if isTaskBlock {
+                Text(event.title).font(.headline)
+            } else {
+                TextField("Title", text: $title)
+                    .font(.headline)
+            }
             DatePicker("Starts", selection: $start)
             DatePicker("Ends", selection: $end)
             TextField("Notes", text: $notes, axis: .vertical)
                 .lineLimit(2...5)
+            if isTaskBlock {
+                Toggle("Pinned", isOn: $isPinned)
+                    .help("Pinned blocks stay put when Emo re-plans")
+                HStack {
+                    Button("Complete Task", systemImage: "checkmark.circle") { run(.completeTask) }
+                    Button("Skip Today", systemImage: "forward") { run(.skipToday) }
+                }
+            }
 
             if !event.isUserEditable {
                 Label("This event comes from an integration and can only be changed there.", systemImage: "link")
@@ -34,7 +49,7 @@ struct EventEditor: View {
             }
 
             HStack {
-                Button("Delete", role: .destructive, action: delete)
+                Button(isTaskBlock ? "Remove Block" : "Delete", role: .destructive, action: delete)
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -51,6 +66,7 @@ struct EventEditor: View {
             start = event.start
             end = event.end
             notes = event.notes
+            isPinned = event.isLocked
         }
     }
 
@@ -58,10 +74,21 @@ struct EventEditor: View {
 
     private func save() {
         do {
-            try engine.update(event, title: title, notes: notes, start: start, end: end)
+            try engine.update(event, title: isTaskBlock ? nil : title, notes: notes, start: start, end: end)
+            // An explicit choice in the editor wins over "moved by hand → pinned".
+            if isTaskBlock, event.isLocked != isPinned { try engine.setPinned(event, isPinned) }
             dismiss()
         } catch let error as CalendarEngine.EditError {
             errorMessage = error.message
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func run(_ action: TaskBlockAction) {
+        do {
+            try TaskBlockActions.perform(action, on: event, in: modelContext)
+            dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
