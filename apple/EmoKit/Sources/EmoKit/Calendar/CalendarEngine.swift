@@ -203,15 +203,33 @@ public struct CalendarEngine {
             if let day, remainingDay != day { continue }
             if !includingPinned, event.isLocked { continue }
             changed.insert(remainingDay)
-            if event.start < now, now.timeIntervalSince(event.start) >= Self.minimumDuration {
-                event.end = now
-                event.updatedAt = now
-            } else {
-                context.delete(event)
-            }
+            releaseRemainder(of: event, now: now)
         }
         try context.save()
         return changed
+    }
+
+    /// Unschedules every task: removes all planned blocks (task blocks and their transit, pinned
+    /// ones included) that haven't started by `now`, and cuts any in progress short at `now`.
+    /// Fixed events, manual transit and the past are untouched. Returns how many blocks changed.
+    @discardableResult
+    public func clearAllFuturePlannedBlocks(now: Date) throws -> Int {
+        let blocks = try context.fetch(FetchDescriptor<CalendarEvent>(predicate: #Predicate { $0.end > now }))
+            .filter { $0.isPlannedBlock && $0.origin == .local }
+        for block in blocks { releaseRemainder(of: block, now: now) }
+        try context.save()
+        return blocks.count
+    }
+
+    /// Gives up the part of `event` after `now`: trims it to end at `now` if enough of it has
+    /// already happened, otherwise deletes it. Doesn't save.
+    private func releaseRemainder(of event: CalendarEvent, now: Date) {
+        if event.start < now, now.timeIntervalSince(event.start) >= Self.minimumDuration {
+            event.end = now
+            event.updatedAt = now
+        } else {
+            context.delete(event)
+        }
     }
 
     /// Removes every event of a task, past ones included (used when the task itself is deleted).

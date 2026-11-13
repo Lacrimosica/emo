@@ -107,4 +107,26 @@ import Testing
         #expect(at(9, 8).snapped(toMinutes: 15, calendar: calendar) == at(9, 15))
         #expect(at(9, 53).snapped(toMinutes: 15, calendar: calendar) == at(10))
     }
+
+    @Test func clearingAllFuturePlannedBlocksKeepsFixedEventsManualTransitAndThePast() throws {
+        let task = try Backlog(context: container.mainContext).add(TaskDraft(name: "Write", estimatedHours: 4))
+        let tomorrow = day.adding(days: 1, calendar: calendar)
+        try engine.createFixedEvent(title: "Dentist", start: at(15), end: at(16))
+        try engine.createTransit(start: at(17), duration: 1800)
+        try engine.pinTaskBlock(task, start: at(8), end: at(9))            // past
+        let running = try engine.pinTaskBlock(task, start: at(9, 30), end: at(11)) // in progress
+        try engine.replacePlannedTaskBlocks(on: day, from: at(10), with: [
+            (task: task, start: at(12), end: at(12, 30), kind: .transit),
+            (task: task, start: at(12, 30), end: at(14), kind: .taskBlock),
+        ], calendar: calendar)
+        try engine.pinTaskBlock(task, start: at(10, on: tomorrow), end: at(11, on: tomorrow))
+
+        let changed = try engine.clearAllFuturePlannedBlocks(now: at(10))
+
+        #expect(changed == 4)
+        let today = try engine.events(on: day, calendar: calendar)
+        #expect(today.map(\.title) == ["Write", "Write", "Dentist", "Transit"])
+        #expect(running.end == at(10))
+        #expect(try engine.events(on: tomorrow, calendar: calendar).isEmpty)
+    }
 }
