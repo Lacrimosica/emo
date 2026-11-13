@@ -40,6 +40,9 @@ struct RootView: View {
         NavigationSplitView {
             List(SidebarItem.allCases, selection: selection) { item in
                 Label(item.title, systemImage: item.systemImage)
+                    // The selection is a SidebarItem; without this tag rows are tagged with their
+                    // String `id`, which never matches, so clicks did nothing.
+                    .tag(item)
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 190)
         } detail: {
