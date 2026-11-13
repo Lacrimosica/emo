@@ -4,6 +4,7 @@ import SwiftUI
 /// Settings › Integrations: which outside calendars feed Emo's internal calendar.
 struct IntegrationsSettingsView: View {
     @Environment(CalendarSyncService.self) private var calendarSync
+    @Environment(RemindersSyncService.self) private var remindersSync
 
     var body: some View {
         Form {
@@ -57,9 +58,61 @@ struct IntegrationsSettingsView: View {
                     }
                 }
             }
+
+            Section {
+                Toggle("Apple Reminders", isOn: Binding(
+                    get: { remindersSync.isEnabled },
+                    set: { on in Task { await remindersSync.setEnabled(on) } }
+                ))
+                Text("Open reminders join your backlog with a quick default size (marked Review). Completing or deleting one in Reminders updates Emo.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if remindersSync.accessDenied {
+                    HStack {
+                        Label("Emo doesn't have access to your reminders.", systemImage: "lock")
+                        Spacer()
+                        Button("Open Privacy Settings") {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!)
+                        }
+                    }
+                    .font(.callout)
+                }
+            }
+            if remindersSync.isEnabled, remindersSync.hasAccess {
+                Section("Lists") {
+                    ForEach(remindersSync.lists) { list in
+                        Toggle("\(list.title) · \(list.accountTitle)", isOn: Binding(
+                            get: { remindersSync.selectedLists.contains(list.id) },
+                            set: { _ in remindersSync.toggle(list.id) }
+                        ))
+                    }
+                }
+                Section {
+                    HStack {
+                        Button("Sync Now") { remindersSync.reloadLists(); remindersSync.sync() }
+                        Spacer()
+                        Text(remindersStatus).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let error = remindersSync.errorMessage {
+                        Text(error).font(.callout).foregroundStyle(.red)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
-        .onAppear { calendarSync.reloadCalendars() }
+        .task {
+            await calendarSync.ensureAccess()
+            await remindersSync.ensureAccess()
+        }
+    }
+
+    private var remindersStatus: String {
+        guard let lastSync = remindersSync.lastSync else { return "Not synced yet" }
+        var text = "Synced \(lastSync.formatted(date: .omitted, time: .shortened))"
+        if let r = remindersSync.lastResult, r.changed {
+            text += " · \(r.added) added, \(r.updated) changed, \(r.completed) completed, \(r.removed) removed"
+        }
+        return text
     }
 
     private var accounts: [String] {

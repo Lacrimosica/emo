@@ -31,6 +31,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(CalendarSyncService.self) private var calendarSync
+    @Environment(RemindersSyncService.self) private var remindersSync
 
     @AppStorage(SidebarItem.storageKey) private var storedSelection: SidebarItem = .today
     @State private var today = LocalDay.today()
@@ -78,7 +79,7 @@ struct RootView: View {
         }
         .task(id: today) { promptForCheckInIfNeeded() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refreshToday(); calendarSync.sync() }
+            if phase == .active { refreshToday(); calendarSync.sync(); remindersSync.sync() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             refreshToday()

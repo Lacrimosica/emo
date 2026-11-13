@@ -26,6 +26,8 @@ public final class TaskItem {
     /// `LocalDay.key` of the first day this task may be planned (set on the next occurrence of a
     /// recurring task, so it doesn't land again on the day the previous one was completed).
     public var availableFromDayKey: String?
+    /// Imported with guessed sizing (e.g. from Reminders); cleared when the user edits the task.
+    public var needsReview: Bool = false
 
     public init(
         name: String,

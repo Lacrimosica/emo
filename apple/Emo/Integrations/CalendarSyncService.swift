@@ -12,6 +12,9 @@ import SwiftUI
 final class CalendarSyncService {
     private enum Key {
         static let enabled = "integrations.appleCalendar.enabled"
+        /// Set once the user (or the first load) has chosen which calendars to use, so an empty
+        /// selection afterwards means "none", not "not chosen yet".
+        static let chosen = "integrations.appleCalendar.chosen"
         static let calendars = "integrations.appleCalendar.calendars"
     }
 
@@ -37,7 +40,19 @@ final class CalendarSyncService {
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: source.store, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.scheduleSync() }
         }
-        if isEnabled, hasAccess { reloadCalendars(); sync() }
+        if isEnabled { Task { await ensureAccess() } }
+    }
+
+    /// When the integration is on but macOS hasn't decided on access (first run, or a rebuilt
+    /// ad-hoc-signed app, which macOS treats as a new app), ask again rather than sit idle.
+    func ensureAccess() async {
+        guard isEnabled else { return }
+        if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+            await setEnabled(true)
+        } else {
+            reloadCalendars()
+            sync()
+        }
     }
 
     /// Turns the integration on (asking for access) or off (removing everything it imported).
@@ -52,12 +67,9 @@ final class CalendarSyncService {
             guard hasAccess else { return }
             isEnabled = true
             defaults.set(true, forKey: Key.enabled)
+            source.store.reset()   // a store created before access was granted can list nothing
             reloadCalendars()
-            if selectedCalendars.isEmpty {
-                setSelected(Set(calendars.map(\.id)))   // start with everything; the user can narrow it
-            } else {
-                sync()
-            }
+            sync()
         } else {
             isEnabled = false
             defaults.set(false, forKey: Key.enabled)
@@ -67,6 +79,7 @@ final class CalendarSyncService {
 
     func setSelected(_ ids: Set<String>) {
         selectedCalendars = ids
+        defaults.set(true, forKey: Key.chosen)
         defaults.set(Array(ids), forKey: Key.calendars)
         guard isEnabled else { return }
         run { try CalendarReconciler(context: context).removeAll(provider: AppleCalendarSource.provider, keeping: ids) }
@@ -83,6 +96,10 @@ final class CalendarSyncService {
         hasAccess = AppleCalendarSource.hasAccess
         accessDenied = AppleCalendarSource.accessDenied
         calendars = hasAccess ? source.calendars() : []
+        // Start with every calendar the first time any are visible; the user can narrow it.
+        if isEnabled, !calendars.isEmpty, !defaults.bool(forKey: Key.chosen) {
+            setSelected(Set(calendars.map(\.id)))
+        }
     }
 
     /// Pulls a fresh snapshot of the next 14 days and reconciles it.

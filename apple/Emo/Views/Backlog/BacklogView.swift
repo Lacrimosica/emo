@@ -135,6 +135,11 @@ private struct TaskRow: View {
                     if task.skippedDayKey == today.key {
                         Label("Skipped today", systemImage: "forward")
                     }
+                    if task.needsReview {
+                        Label("Review", systemImage: "exclamationmark.circle")
+                            .foregroundStyle(.orange)
+                            .help("Imported with a guessed size. Double-click to check the estimate and energy.")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

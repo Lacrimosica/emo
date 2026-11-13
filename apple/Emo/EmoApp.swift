@@ -6,6 +6,7 @@ import SwiftUI
 struct EmoApp: App {
     private let container: ModelContainer
     @State private var calendarSync: CalendarSyncService
+    @State private var remindersSync: RemindersSyncService
 
     init() {
         let container: ModelContainer
@@ -16,6 +17,7 @@ struct EmoApp: App {
         }
         self.container = container
         _calendarSync = State(initialValue: CalendarSyncService(context: container.mainContext))
+        _remindersSync = State(initialValue: RemindersSyncService(context: container.mainContext))
     }
 
     var body: some Scene {
@@ -23,6 +25,7 @@ struct EmoApp: App {
         Window("Emo", id: "main") {
             RootView()
                 .environment(calendarSync)
+                .environment(remindersSync)
         }
         .modelContainer(container)
         .defaultSize(width: 900, height: 600)
@@ -31,6 +34,7 @@ struct EmoApp: App {
         Settings {
             SettingsView()
                 .environment(calendarSync)
+                .environment(remindersSync)
         }
         .modelContainer(container)
     }

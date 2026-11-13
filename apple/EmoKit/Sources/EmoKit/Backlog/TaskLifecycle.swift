@@ -100,6 +100,7 @@ public struct TaskLifecycle {
         task.recurrence = draft.recurrence
         task.requiresTransit = draft.requiresTransit
         task.transitMinutes = transitMinutes
+        task.needsReview = false
         try context.save()
         try engine.renameEvents(forTask: task)
 
