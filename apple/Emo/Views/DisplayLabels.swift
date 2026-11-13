@@ -52,3 +52,34 @@ extension Recurrence {
         }
     }
 }
+
+extension ListRole {
+    var label: String {
+        switch self {
+        case .inbox: "Inbox"
+        case .routine: "Daily checklist"
+        case .nextAction: "Next action"
+        case .waiting: "Waiting"
+        case .project: "Projects"
+        case .someday: "Someday / Maybe"
+        case .shopping: "Shopping"
+        case .idea: "Ideas"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .inbox: "tray"
+        case .routine: "checklist"
+        case .nextAction: "arrow.right.circle"
+        case .waiting: "hourglass"
+        case .project: "folder"
+        case .someday: "moon.zzz"
+        case .shopping: "cart"
+        case .idea: "lightbulb"
+        }
+    }
+
+    /// What Emo does with tasks from such a list, for Settings.
+    var schedulingNote: String { isSchedulable ? "Scheduled" : "Kept, not scheduled" }
+}

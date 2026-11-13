@@ -35,17 +35,16 @@ struct BacklogView: View {
                     Button("Add Task") { editor = .new }
                 }
             } else {
-                List(tasks) { task in
-                    TaskRow(task: task, today: .today()) { complete(task) }
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) { editor = .edit(task) }
-                        .contextMenu { menu(for: task) }
-                        .swipeActions(edge: .trailing) {
-                            Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+                List {
+                    ForEach(groups, id: \.title) { group in
+                        Section {
+                            ForEach(group.tasks) { row(for: $0) }
+                        } header: {
+                            if let title = group.title { Label(title, systemImage: group.systemImage) }
+                        } footer: {
+                            if let note = group.note { Text(note) }
                         }
-                        .swipeActions(edge: .leading) {
-                            Button("Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
-                        }
+                    }
                 }
             }
         }
@@ -80,6 +79,39 @@ struct BacklogView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    private func row(for task: TaskItem) -> some View {
+        TaskRow(task: task, today: .today()) { complete(task) }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { editor = .edit(task) }
+            .contextMenu { menu(for: task) }
+            .swipeActions(edge: .trailing) {
+                Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+            }
+            .swipeActions(edge: .leading) {
+                Button("Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+            }
+    }
+
+    private struct RoleGroup {
+        var title: String?
+        var systemImage = ""
+        var note: String?
+        var tasks: [TaskItem]
+    }
+
+    /// Schedulable work first (untitled), then each kept-but-unscheduled role in list order.
+    private var groups: [RoleGroup] {
+        let byRole = Dictionary(grouping: tasks.filter { !$0.isSchedulable }) { $0.listRole! }
+        let parked = ListRole.allCases.filter { !$0.isSchedulable }.compactMap { role -> RoleGroup? in
+            guard let tasks = byRole[role] else { return nil }
+            return RoleGroup(title: role.label, systemImage: role.systemImage, note: role == .inbox
+                         ? "Clarify these in Reminders: move each to an NA list to have it scheduled." : nil,
+                         tasks: tasks)
+        }
+        let active = tasks.filter(\.isSchedulable)
+        return (active.isEmpty ? [] : [RoleGroup(title: parked.isEmpty ? nil : "To do", systemImage: "calendar", tasks: active)]) + parked
     }
 
     @ViewBuilder
@@ -122,6 +154,9 @@ private struct TaskRow: View {
                 Text(task.name)
                     .font(.body)
                 HStack(spacing: 8) {
+                    if let area = task.listArea {
+                        Label(area, systemImage: task.listRole?.systemImage ?? "list.bullet")
+                    }
                     Text(task.category.label)
                     if task.recurrence != .none {
                         Label(task.recurrence.label, systemImage: "repeat")

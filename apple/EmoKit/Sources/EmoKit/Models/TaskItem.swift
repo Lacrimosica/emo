@@ -28,6 +28,11 @@ public final class TaskItem {
     public var availableFromDayKey: String?
     /// Imported with guessed sizing (e.g. from Reminders); cleared when the user edits the task.
     public var needsReview: Bool = false
+    /// Role of the integration list this task came from (`ListRole` raw value); nil for tasks
+    /// created in Emo. Only schedulable roles are planned.
+    public var listRoleRaw: String?
+    /// Area of life of that list ("NA - Home" → "Home").
+    public var listArea: String?
 
     public init(
         name: String,
@@ -66,11 +71,19 @@ public final class TaskItem {
         set { recurrenceRaw = newValue.rawValue }
     }
 
+    public var listRole: ListRole? {
+        get { listRoleRaw.flatMap(ListRole.init(rawValue:)) }
+        set { listRoleRaw = newValue?.rawValue }
+    }
+
+    /// Whether planning may ever place this task (Someday, Waiting, Inbox… items may not).
+    public var isSchedulable: Bool { listRole?.isSchedulable ?? true }
+
     public var isCompleted: Bool { completedAt != nil }
 
     /// Whether planning may place this task on `day`.
     public func isPlannable(on day: LocalDay) -> Bool {
-        guard !isCompleted, skippedDayKey != day.key else { return false }
+        guard !isCompleted, isSchedulable, skippedDayKey != day.key else { return false }
         if let from = availableFromDayKey, day.key < from { return false }
         return true
     }

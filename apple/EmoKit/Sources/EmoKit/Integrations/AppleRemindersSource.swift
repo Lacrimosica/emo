@@ -40,13 +40,18 @@ public final class AppleRemindersSource {
         let open = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: lists)
         let done = store.predicateForCompletedReminders(withCompletionDateStarting: now.addingTimeInterval(-Self.completedLookback),
                                                         ending: now, calendars: lists)
-        let reminders = await fetch(open, calendar: calendar) + fetch(done, calendar: calendar)
+        let assignments = Dictionary(uniqueKeysWithValues: lists.map {
+            ($0.calendarIdentifier, ListAssignment.infer(fromTitle: $0.title))
+        })
+        let reminders = await fetch(open, assignments, calendar: calendar) + fetch(done, assignments, calendar: calendar)
         return ReminderSnapshot(provider: Self.provider, sources: selected, reminders: reminders)
     }
 
-    private func fetch(_ predicate: NSPredicate, calendar: Calendar) async -> [ExternalReminder] {
+    private func fetch(_ predicate: NSPredicate, _ assignments: [String: ListAssignment],
+                       calendar: Calendar) async -> [ExternalReminder] {
         await withCheckedContinuation { continuation in
-            store.fetchReminders(matching: predicate, completion: Self.completion(calendar: calendar, continuation))
+            store.fetchReminders(matching: predicate,
+                                 completion: Self.completion(assignments: assignments, calendar: calendar, continuation))
         }
     }
 
@@ -54,6 +59,7 @@ public final class AppleRemindersSource {
     /// (a closure written inside this @MainActor class would be, and traps at runtime).
     /// Maps to value types here: EKReminder isn't Sendable.
     private nonisolated static func completion(
+        assignments: [String: ListAssignment],
         calendar: Calendar,
         _ continuation: CheckedContinuation<[ExternalReminder], Never>
     ) -> @Sendable ([EKReminder]?) -> Void {
@@ -64,7 +70,8 @@ public final class AppleRemindersSource {
                     sourceID: reminder.calendar.calendarIdentifier,
                     title: reminder.title ?? "",
                     due: dueDate(reminder.dueDateComponents, calendar: calendar),
-                    isCompleted: reminder.isCompleted
+                    isCompleted: reminder.isCompleted,
+                    list: assignments[reminder.calendar.calendarIdentifier] ?? ListAssignment(role: .nextAction)
                 )
             }
             continuation.resume(returning: mapped)

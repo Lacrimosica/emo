@@ -19,8 +19,10 @@ import Testing
     func snap(_ reminders: [ExternalReminder], sources: Set<String> = ["home"]) -> ReminderSnapshot {
         ReminderSnapshot(provider: "apple-reminders", sources: sources, reminders: reminders)
     }
-    func r(_ id: String, _ title: String, due: Date? = nil, done: Bool = false, list: String = "home") -> ExternalReminder {
-        ExternalReminder(externalID: id, sourceID: list, title: title, due: due, isCompleted: done)
+    func r(_ id: String, _ title: String, due: Date? = nil, done: Bool = false, list: String = "home",
+           named listTitle: String = "NA - Home") -> ExternalReminder {
+        ExternalReminder(externalID: id, sourceID: list, title: title, due: due, isCompleted: done,
+                         list: .infer(fromTitle: listTitle))
     }
     func open() throws -> [TaskItem] { try Backlog(context: context).openTasks() }
 
@@ -102,6 +104,46 @@ import Testing
         let result = try reconciler.apply(snap([r("1", "Persistent")]), now: at(9))
         #expect(result.added == 1)
         #expect(try open().count == 1)
+    }
+
+    @Test func importedTasksCarryTheirListRoleAndArea() throws {
+        try reconciler.apply(snap([r("1", "Fix shelf"), r("2", "Learn cello", named: "SOMEDAY - Home")]), now: at(8))
+        let tasks = Dictionary(uniqueKeysWithValues: try open().map { ($0.name, $0) })
+        #expect(tasks["Fix shelf"]?.listRole == .nextAction && tasks["Fix shelf"]?.listArea == "Home")
+        #expect(tasks["Learn cello"]?.listRole == .someday && tasks["Learn cello"]?.isSchedulable == false)
+    }
+
+    @Test func onlyNextActionAndRoutineRemindersGetPlanned() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 5, for: day)
+        try reconciler.apply(snap([
+            r("1", "Pay rent", named: "NA - Personal"),
+            r("2", "Stretch", named: "CHECKLIST DAILY"),
+            r("3", "Learn cello", named: "SOMEDAY - Personal"),
+            r("4", "Plumber quote", named: "WAITING"),
+            r("5", "Milk", named: "GROCERIES"),
+            r("6", "Podcast idea", named: "Ideas"),
+            r("7", "Kitchen renovation", named: "PROJECTS - Home"),
+            r("8", "that thing from the call", named: "INBOX"),
+        ]), now: at(7))
+        try DayPlanning(context: context, calendar: calendar).plan(day, now: at(7))
+        let planned = Set(try CalendarEngine(context: context).events(on: day, calendar: calendar).compactMap(\.taskID))
+        let names = Set(try open().filter { planned.contains($0.id) }.map(\.name))
+        #expect(names == ["Pay rent", "Stretch"])
+        #expect(try open().count == 8)   // the rest are still remembered
+    }
+
+    @Test func routineItemsArriveSmallAndLight() throws {
+        try reconciler.apply(snap([r("1", "Stretch", named: "CHECKLIST DAILY")]), now: at(8))
+        let task = try #require(try open().first)
+        #expect(task.estimatedHours == ReminderReconciler.routineEstimateHours && task.energyCost == .low)
+    }
+
+    @Test func movingAReminderToANextActionListMakesItSchedulable() throws {
+        try reconciler.apply(snap([r("1", "Learn cello", named: "SOMEDAY - Home")]), now: at(8))
+        let task = try #require(try open().first)
+        #expect(!task.isSchedulable)
+        let result = try reconciler.apply(snap([r("1", "Learn cello", named: "NA - Home")]), now: at(9))
+        #expect(result.updated == 1 && task.isSchedulable && task.listRole == .nextAction)
     }
 }
 

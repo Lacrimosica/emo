@@ -64,7 +64,7 @@ struct IntegrationsSettingsView: View {
                     get: { remindersSync.isEnabled },
                     set: { on in Task { await remindersSync.setEnabled(on) } }
                 ))
-                Text("Open reminders join your backlog with a quick default size (marked Review). Completing or deleting one in Reminders updates Emo.")
+                Text("Open reminders join your backlog with a quick default size (marked Review). Each list's role comes from its name (\"NA - Home\", \"SOMEDAY - Personal\", \"WAITING\"…): only next-action and daily checklist lists are scheduled; the rest are kept in the backlog but stay off your calendar. Completing or deleting one in Reminders updates Emo.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if remindersSync.accessDenied {
@@ -81,10 +81,19 @@ struct IntegrationsSettingsView: View {
             if remindersSync.isEnabled, remindersSync.hasAccess {
                 Section("Lists") {
                     ForEach(remindersSync.lists) { list in
-                        Toggle("\(list.title) · \(list.accountTitle)", isOn: Binding(
+                        let role = ListAssignment.infer(fromTitle: list.title).role
+                        Toggle(isOn: Binding(
                             get: { remindersSync.selectedLists.contains(list.id) },
                             set: { _ in remindersSync.toggle(list.id) }
-                        ))
+                        )) {
+                            HStack {
+                                Text("\(list.title) · \(list.accountTitle)")
+                                Spacer()
+                                Label("\(role.label) · \(role.schedulingNote)", systemImage: role.systemImage)
+                                    .font(.caption)
+                                    .foregroundStyle(role.isSchedulable ? Color.secondary : Color.orange)
+                            }
+                        }
                     }
                 }
                 Section {

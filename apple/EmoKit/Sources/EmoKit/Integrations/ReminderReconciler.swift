@@ -3,8 +3,9 @@ import SwiftData
 
 /// The engine side of task integrations: mirrors reminders into the backlog as tasks.
 ///
-/// New open reminders become tasks with default sizing, flagged for review. Upstream edits update
-/// only what Reminders owns (title, due date), so the user's estimate and energy survive.
+/// New open reminders become tasks with default sizing, flagged for review, tagged with their
+/// list's role: only next-action and routine lists are scheduled (see `ListRole`). Upstream edits update
+/// only what Reminders owns (title, due date, list), so the user's estimate and energy survive.
 /// Completion upstream completes the task through `TaskLifecycle` (so its plan is repaired);
 /// deletion upstream removes the task if it's still open.
 @MainActor
@@ -19,6 +20,7 @@ public struct ReminderReconciler {
 
     /// Sizing for imported reminders until the user reviews them.
     public static let defaultEstimateHours = 0.5
+    public static let routineEstimateHours = 0.25
 
     private let context: ModelContext
     private let calendar: Calendar
@@ -58,6 +60,7 @@ public struct ReminderReconciler {
                     draft.deadline = reminder.due
                     try lifecycle.update(task, with: draft, now: now)
                     task.needsReview = stillNeedsReview
+                    Self.assign(reminder.list, to: task)
                     result.updated += 1
                 }
                 link.contentHash = reminder.contentHash
@@ -65,10 +68,9 @@ public struct ReminderReconciler {
                 link.lastSeenAt = now
             } else if !reminder.isCompleted {
                 if let link { context.delete(link) }   // its task was deleted in Emo: import afresh
-                let task = try backlog.add(TaskDraft(name: Self.title(reminder.title),
-                                                     estimatedHours: Self.defaultEstimateHours,
-                                                     deadline: reminder.due), now: now)
+                let task = try backlog.add(Self.draft(for: reminder), now: now)
                 task.needsReview = true
+                Self.assign(reminder.list, to: task)
                 let newLink = ExternalLink(provider: snapshot.provider, externalID: reminder.externalID,
                                            sourceID: reminder.sourceID, contentHash: reminder.contentHash, now: now)
                 newLink.taskID = task.id
@@ -106,6 +108,20 @@ public struct ReminderReconciler {
 
     private func links(for provider: String) throws -> [ExternalLink] {
         try context.fetch(FetchDescriptor<ExternalLink>(predicate: #Predicate { $0.provider == provider }))
+    }
+
+    /// Sizing for a new import. Routine checklist items are quick and light.
+    static func draft(for reminder: ExternalReminder) -> TaskDraft {
+        let routine = reminder.list.role == .routine
+        return TaskDraft(name: title(reminder.title),
+                         estimatedHours: routine ? routineEstimateHours : defaultEstimateHours,
+                         energyCost: routine ? .low : .medium,
+                         deadline: reminder.due)
+    }
+
+    private static func assign(_ list: ListAssignment, to task: TaskItem) {
+        task.listRole = list.role
+        task.listArea = list.area
     }
 
     private static func title(_ raw: String) -> String {

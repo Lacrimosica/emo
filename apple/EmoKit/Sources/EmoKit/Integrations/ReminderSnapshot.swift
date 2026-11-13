@@ -7,18 +7,23 @@ public struct ExternalReminder: Equatable, Sendable {
     public var title: String
     public var due: Date?
     public var isCompleted: Bool
+    /// What the reminder's list is for, read from the list's name.
+    public var list: ListAssignment
 
-    public init(externalID: String, sourceID: String, title: String, due: Date? = nil, isCompleted: Bool = false) {
+    public init(externalID: String, sourceID: String, title: String, due: Date? = nil, isCompleted: Bool = false,
+                list: ListAssignment = ListAssignment(role: .nextAction)) {
         self.externalID = externalID
         self.sourceID = sourceID
         self.title = title
         self.due = due
         self.isCompleted = isCompleted
+        self.list = list
     }
 
-    /// Only the fields Emo mirrors (title, due); completion is handled separately.
+    /// Only the fields Emo mirrors (title, due, list role and area); completion is handled separately.
     var contentHash: String {
-        [title, due.map { String($0.timeIntervalSinceReferenceDate) } ?? "-"].joined(separator: "\u{1F}")
+        [title, due.map { String($0.timeIntervalSinceReferenceDate) } ?? "-", list.role.rawValue, list.area ?? "-"]
+            .joined(separator: "\u{1F}")
     }
 }
 
