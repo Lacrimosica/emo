@@ -55,11 +55,13 @@ public struct ReminderReconciler {
                     }
                 } else if link.contentHash != reminder.contentHash {
                     let stillNeedsReview = task.needsReview   // an upstream edit isn't a user review
+                    let stillFromMemory = task.sizedFromMemory
                     var draft = TaskDraft(task)
                     draft.name = Self.title(reminder.title)
                     draft.deadline = reminder.due
                     try lifecycle.update(task, with: draft, now: now)
                     task.needsReview = stillNeedsReview
+                    task.sizedFromMemory = stillFromMemory
                     Self.assign(reminder.list, to: task)
                     task.notes = Self.notes(reminder.notes)
                     // Edits Emo hasn't written yet stay applied on top of the new upstream notes.
@@ -74,8 +76,20 @@ public struct ReminderReconciler {
                 link.lastSeenAt = now
             } else if !reminder.isCompleted {
                 if let link { context.delete(link) }   // its task was deleted in Emo: import afresh
-                let task = try backlog.add(Self.draft(for: reminder), now: now)
+                var draft = Self.draft(for: reminder)
+                // Size it like the user sized similar tasks, when there's a confident match (ticket 18).
+                var fromMemory = false
+                if reminder.list.role != .routine,
+                   let suggestion = try SchedulingMemory(context: context).suggest(for: draft.name, area: reminder.list.area,
+                                                                                   role: reminder.list.role) {
+                    draft.estimatedHours = suggestion.estimatedHours
+                    draft.energyCost = suggestion.energyCost
+                    draft.category = suggestion.category
+                    fromMemory = true
+                }
+                let task = try backlog.add(draft, now: now)
                 task.needsReview = true
+                task.sizedFromMemory = fromMemory
                 Self.assign(reminder.list, to: task)
                 task.notes = Self.notes(reminder.notes)
                 task.applyNotes(seenOn: LocalDay(now, calendar: calendar))

@@ -119,8 +119,10 @@ struct TaskEditorSheet: View {
                    ReminderNotesWriteBack(context: modelContext).hasLinkedReminder(task) {
                     Task { await remindersSync.writeNotes([.ongoing: ongoingAfter], for: task) }
                 }
+                try? SchedulingMemory(context: modelContext).record(task)   // the user sized it (ticket 18)
             } else {
-                try Backlog(context: modelContext).add(final)
+                let task = try Backlog(context: modelContext).add(final)
+                try? SchedulingMemory(context: modelContext).record(task)
             }
             dismiss()
             onSaved()

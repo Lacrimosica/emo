@@ -214,9 +214,11 @@ private struct TaskRow: View {
                         Label("Skipped today", systemImage: "forward")
                     }
                     if task.needsReview {
-                        Label("Review", systemImage: "exclamationmark.circle")
+                        Label(task.sizedFromMemory ? "Review · sized from memory" : "Review", systemImage: "exclamationmark.circle")
                             .foregroundStyle(.orange)
-                            .help("Imported with a guessed size. Double-click to check the estimate and energy.")
+                            .help(task.sizedFromMemory
+                                  ? "Sized like similar tasks you sized before. Double-click to check it."
+                                  : "Imported with a guessed size. Double-click to check the estimate and energy.")
                     }
                     if task.looksVague {
                         Label("Needs context", systemImage: "sparkles")

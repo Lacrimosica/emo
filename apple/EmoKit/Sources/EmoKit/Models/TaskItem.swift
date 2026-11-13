@@ -28,6 +28,8 @@ public final class TaskItem {
     public var availableFromDayKey: String?
     /// Imported with guessed sizing (e.g. from Reminders); cleared when the user edits the task.
     public var needsReview: Bool = false
+    /// The guessed sizing came from the user's past tasks (`SchedulingMemory`), not the defaults.
+    public var sizedFromMemory: Bool = false
     /// Role of the integration list this task came from (`ListRole` raw value); nil for tasks
     /// created in Emo. Only schedulable roles are planned.
     public var listRoleRaw: String?

@@ -143,7 +143,8 @@ private struct PhoneTaskRow: View {
                         Label(deadline.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
                     }
                     if task.needsReview {
-                        Label("Review", systemImage: "exclamationmark.circle").foregroundStyle(.orange)
+                        Label(task.sizedFromMemory ? "Review · from memory" : "Review", systemImage: "exclamationmark.circle")
+                            .foregroundStyle(.orange)
                     }
                     if task.looksVague {
                         Label("Needs context", systemImage: "sparkles").foregroundStyle(.indigo)

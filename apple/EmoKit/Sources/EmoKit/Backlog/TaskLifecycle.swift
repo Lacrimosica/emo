@@ -124,6 +124,7 @@ public struct TaskLifecycle {
         task.transitMinutes = transitMinutes
         draft.applyOngoing(to: task)
         task.needsReview = false
+        task.sizedFromMemory = false
         try context.save()
         try engine.renameEvents(forTask: task)
 
