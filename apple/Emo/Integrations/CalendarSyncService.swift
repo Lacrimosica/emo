@@ -15,6 +15,8 @@ final class CalendarSyncService {
         /// Set once the user (or the first load) has chosen which calendars to use, so an empty
         /// selection afterwards means "none", not "not chosen yet".
         static let chosen = "integrations.appleCalendar.chosen"
+        static let writeBack = "integrations.appleCalendar.writeBack"
+        static let emoCalendarID = "integrations.appleCalendar.emoCalendarID"
         static let calendars = "integrations.appleCalendar.calendars"
     }
 
@@ -26,6 +28,8 @@ final class CalendarSyncService {
     private(set) var lastSync: Date?
     private(set) var lastResult: CalendarReconciler.Result?
     private(set) var errorMessage: String?
+    /// Mirror Emo's planned blocks into an "Emo" calendar in Calendar.app.
+    private(set) var isWriteBackEnabled: Bool
 
     private let source = AppleCalendarSource()
     private let context: ModelContext
@@ -39,7 +43,12 @@ final class CalendarSyncService {
         self.context = context
         self.defaults = defaults
         isEnabled = defaults.bool(forKey: Key.enabled)
+        isWriteBackEnabled = defaults.bool(forKey: Key.writeBack)
         selectedCalendars = Set(defaults.stringArray(forKey: Key.calendars) ?? [])
+        // Re-mirror after the plan changes (debounced: a re-plan saves several times).
+        NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: context, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scheduleWriteBack() }
+        }
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: source.store, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.scheduleSync() }
         }
@@ -99,7 +108,9 @@ final class CalendarSyncService {
     func reloadCalendars() {
         hasAccess = grantedThisSession || AppleCalendarSource.hasAccess
         accessDenied = !hasAccess && AppleCalendarSource.accessDenied
-        calendars = hasAccess ? source.calendars() : []
+        // Emo's own write-back calendar is never imported: that would read our plan back as meetings.
+        let emoID = defaults.string(forKey: Key.emoCalendarID)
+        calendars = hasAccess ? source.calendars().filter { $0.id != emoID } : []
         // Start with every calendar the first time any are visible; the user can narrow it.
         if isEnabled, !calendars.isEmpty, !defaults.bool(forKey: Key.chosen) {
             setSelected(Set(calendars.map(\.id)))
@@ -109,8 +120,73 @@ final class CalendarSyncService {
     /// Pulls a fresh snapshot of the next 14 days and reconciles it.
     func sync() {
         guard isEnabled, hasAccess else { return }
-        let snapshot = source.snapshot(selected: selectedCalendars, from: .today())
+        var selected = selectedCalendars
+        if let emoID = defaults.string(forKey: Key.emoCalendarID) { selected.remove(emoID) }
+        let snapshot = source.snapshot(selected: selected, from: .today())
         run { try CalendarReconciler(context: context).apply(snapshot) }
+    }
+
+    // MARK: Write-back
+
+    /// Turns mirroring on (creating the Emo calendar) or off (optionally deleting it and its events).
+    func setWriteBack(_ on: Bool, removeExisting: Bool = true) async {
+        if on {
+            if !hasAccess {
+                do { hasAccess = try await source.requestAccess(); grantedThisSession = hasAccess } catch { errorMessage = error.localizedDescription }
+            }
+            guard hasAccess else { return }
+            isWriteBackEnabled = true
+            defaults.set(true, forKey: Key.writeBack)
+            writeBack()
+        } else {
+            isWriteBackEnabled = false
+            defaults.set(false, forKey: Key.writeBack)
+            guard removeExisting else { return }
+            do {
+                try AppleCalendarWriter(store: source.store).removeCalendar(knownID: defaults.string(forKey: Key.emoCalendarID))
+                try CalendarWriteBack(context: context).forgetAll()
+                defaults.removeObject(forKey: Key.emoCalendarID)
+            } catch {
+                errorMessage = "Couldn't remove the Emo calendar: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private var writeBackDebounce: Task<Void, Never>?
+
+    private func scheduleWriteBack() {
+        guard isWriteBackEnabled else { return }
+        writeBackDebounce?.cancel()
+        writeBackDebounce = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            writeBack()
+        }
+    }
+
+    /// Mirrors the next 14 days of planned blocks into the Emo calendar.
+    func writeBack() {
+        guard isWriteBackEnabled, hasAccess else { return }
+        let today = LocalDay.today()
+        let window = DateInterval(start: today.start(), end: today.adding(days: 14).start())
+        do {
+            let writer = AppleCalendarWriter(store: source.store)
+            let cal = try writer.emoCalendar(knownID: defaults.string(forKey: Key.emoCalendarID))
+            if defaults.string(forKey: Key.emoCalendarID) != cal.calendarIdentifier {
+                // New or recreated calendar: anything recorded before refers to events that are gone.
+                try CalendarWriteBack(context: context).forgetAll()
+                defaults.set(cal.calendarIdentifier, forKey: Key.emoCalendarID)
+                selectedCalendars.remove(cal.calendarIdentifier)
+            }
+            let planner = CalendarWriteBack(context: context)
+            let ops = try planner.operations(desired: try planner.desiredEvents(from: today), window: window)
+            guard !ops.isEmpty else { return }
+            for (op, externalID) in try writer.apply(ops, in: cal) {
+                try planner.record(op, externalID: externalID)
+            }
+        } catch {
+            errorMessage = "Couldn't update the Emo calendar: \(error.localizedDescription)"
+        }
     }
 
     /// Calendar.app can post several change notifications in a burst; sync once after it settles.
