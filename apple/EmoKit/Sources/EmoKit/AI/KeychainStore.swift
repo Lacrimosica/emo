@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// API keys live in the macOS Keychain, never in the database or UserDefaults.
+/// API keys live in the Keychain, never in the database or UserDefaults.
 public struct KeychainStore: Sendable {
     public enum Account: String, Sendable {
         case claudeAPIKey = "claude-api-key"

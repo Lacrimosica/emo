@@ -27,7 +27,9 @@ struct TransitSheet: View {
             }
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(minWidth: 380)
+        #endif
         .navigationTitle("Add Transit")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

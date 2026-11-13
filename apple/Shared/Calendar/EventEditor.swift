@@ -2,9 +2,11 @@ import EmoKit
 import SwiftData
 import SwiftUI
 
-/// Popover for editing one internal calendar event.
+/// Edits one internal calendar event: a popover on the Mac, a sheet (inside a NavigationStack) on iPhone.
 struct EventEditor: View {
     let event: CalendarEvent
+    /// The event was just created to be edited here, so Cancel removes it again.
+    var isNew = false
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -20,24 +22,32 @@ struct EventEditor: View {
 
     var body: some View {
         Form {
-            if isTaskBlock {
-                Text(event.title).font(.headline)
-            } else {
-                TextField("Title", text: $title)
-                    .font(.headline)
-            }
-            DatePicker("Starts", selection: $start)
-            DatePicker("Ends", selection: $end)
-            TextField("Notes", text: $notes, axis: .vertical)
-                .lineLimit(2...5)
-            if isTaskBlock {
-                Toggle("Pinned", isOn: $isPinned)
-                    .help("Pinned blocks stay put when Emo re-plans")
-                HStack {
+            Group {
+                if isTaskBlock {
+                    Text(event.title).font(.headline)
+                } else {
+                    TextField("Title", text: $title)
+                        .font(.headline)
+                }
+                DatePicker("Starts", selection: $start)
+                DatePicker("Ends", selection: $end)
+                TextField("Notes", text: $notes, axis: .vertical)
+                    .lineLimit(2...5)
+                if isTaskBlock {
+                    Toggle("Pinned", isOn: $isPinned)
+                        .help("Pinned blocks stay put when Emo re-plans")
+                    #if os(macOS)
+                    HStack {
+                        Button("Complete Task", systemImage: "checkmark.circle") { run(.completeTask) }
+                        Button("Skip Today", systemImage: "forward") { run(.skipToday) }
+                    }
+                    #else
                     Button("Complete Task", systemImage: "checkmark.circle") { run(.completeTask) }
-                    Button("Skip Today", systemImage: "forward") { run(.skipToday) }
+                    Button("Skip for Today", systemImage: "forward") { run(.skipToday) }
+                    #endif
                 }
             }
+            .disabled(!event.isUserEditable)
 
             if !event.isUserEditable {
                 Label("This event comes from an integration and can only be changed there.", systemImage: "link")
@@ -48,19 +58,39 @@ struct EventEditor: View {
                 Text(errorMessage).font(.callout).foregroundStyle(.red)
             }
 
+            #if os(macOS)
             HStack {
                 Button(isTaskBlock ? "Remove Block" : "Delete", role: .destructive, action: delete)
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel", action: cancel)
                     .keyboardShortcut(.cancelAction)
                 Button("Save", action: save)
                     .keyboardShortcut(.defaultAction)
             }
             .disabled(!event.isUserEditable)
+            #else
+            if event.isUserEditable, !isNew {
+                Section {
+                    Button(isTaskBlock ? "Remove Block" : "Delete Event", role: .destructive, action: delete)
+                }
+            }
+            #endif
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(width: 340)
         .disabled(!event.isUserEditable)
+        #else
+        .navigationTitle(isNew ? "New Event" : isTaskBlock ? "Task Block" : "Edit Event")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancel) }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(isNew ? "Add" : "Save", action: save).disabled(!event.isUserEditable)
+            }
+        }
+        .interactiveDismissDisabled(isNew)
+        #endif
         .onAppear {
             title = event.title
             start = event.start
@@ -83,6 +113,11 @@ struct EventEditor: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func cancel() {
+        if isNew { try? engine.delete(event) }
+        dismiss()
     }
 
     private func run(_ action: TaskBlockAction) {

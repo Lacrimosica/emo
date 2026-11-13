@@ -19,6 +19,19 @@ struct AISettingsView: View {
 
     private let keychain = KeychainStore()
 
+    #if os(macOS)
+    private static let device = "Mac"
+    private static let ollamaNote = "Use http://localhost:11434 for a local Ollama, or https://ollama.com with an API key."
+    #else
+    private static let device = "iPhone"
+    private static let ollamaNote = """
+        Ollama doesn't run on iPhone. To use the one on your Mac, enter the Mac's address on your \
+        Wi-Fi, e.g. http://192.168.1.20:11434 (System Settings › Wi-Fi › Details shows it), and start \
+        Ollama on the Mac with OLLAMA_HOST=0.0.0.0 so it accepts connections from the network. \
+        Or use https://ollama.com with an API key.
+        """
+    #endif
+
     enum TestResult: Equatable {
         case ok(String)
         case failed(String)
@@ -33,7 +46,7 @@ struct AISettingsView: View {
             switch provider {
             case .apple:
                 Section {
-                    Text("Runs privately on this Mac with Apple Intelligence. No account or key needed.")
+                    Text("Runs privately on this \(Self.device) with Apple Intelligence. No account or key needed.")
                         .foregroundStyle(.secondary)
                 }
             case .ollama:
@@ -45,7 +58,7 @@ struct AISettingsView: View {
                     ModelPicker(selection: $ollamaModel,
                                 makeCatalog: { OllamaProvider(host: ollamaHost, model: ollamaModel, apiKey: ollamaKey) },
                                 reloadToken: ollamaToken.uuidString)
-                    Text("Use http://localhost:11434 for a local Ollama, or https://ollama.com with an API key.")
+                    Text(Self.ollamaNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

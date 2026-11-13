@@ -39,7 +39,11 @@ struct CheckInSheet: View {
             }
         }
         .padding(24)
+        #if os(macOS)
         .frame(width: 420)
+        #else
+        .presentationDetents([.medium])
+        #endif
         .onAppear(perform: loadExisting)
     }
 

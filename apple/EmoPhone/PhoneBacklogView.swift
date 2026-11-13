@@ -9,6 +9,7 @@ struct PhoneBacklogView: View {
 
     @State private var editing: TaskItem?
     @State private var isAdding = false
+    @State private var isChatting = false
     @State private var deleting: TaskItem?
     @State private var errorMessage: String?
 
@@ -20,8 +21,9 @@ struct PhoneBacklogView: View {
                 } description: {
                     Text("Add a task to start filling your backlog.")
                 } actions: {
-                    Button("Add Task") { isAdding = true }
+                    Button("Ask Emo", systemImage: "sparkles") { isChatting = true }
                         .buttonStyle(.borderedProminent)
+                    Button("Add Task") { isAdding = true }
                 }
             } else {
                 List(tasks) { task in
@@ -38,12 +40,16 @@ struct PhoneBacklogView: View {
         }
         .navigationTitle("Backlog")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Ask Emo", systemImage: "sparkles") { isChatting = true }
                 Button("Add Task", systemImage: "plus") { isAdding = true }
             }
         }
         .sheet(isPresented: $isAdding) {
             NavigationStack { TaskEditorSheet(task: nil) }
+        }
+        .sheet(isPresented: $isChatting) {
+            NavigationStack { TaskChatSheet() }
         }
         .sheet(item: $editing) { task in
             NavigationStack { TaskEditorSheet(task: task) }

@@ -228,6 +228,7 @@ struct EventBlock: View {
     @GestureState private var moveOffset: CGFloat = 0
     @GestureState private var topOffset: CGFloat = 0
     @GestureState private var bottomOffset: CGFloat = 0
+    @State private var isHovering = false
 
     private static func seconds(for dy: CGFloat) -> TimeInterval {
         TimeInterval(dy / DayTimelineView.hourHeight) * 3600
@@ -266,9 +267,15 @@ struct EventBlock: View {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(isSelected ? event.kind.tint : .clear, lineWidth: 1.5)
         }
+        .overlay(alignment: .topTrailing) {
+            if showsQuickActions(height: height) {
+                BlockQuickActions(event: event).padding(3)
+            }
+        }
         .overlay(alignment: .top) { if editable { resizeHandle(.top) } }
         .overlay(alignment: .bottom) { if editable { resizeHandle(.bottom) } }
         .contentShape(RoundedRectangle(cornerRadius: 6))
+        .onHover { isHovering = $0 }
         .onTapGesture(count: 2) { onSelect(); onEdit() }
         .onTapGesture { onSelect() }
         .gesture(
@@ -289,6 +296,13 @@ struct EventBlock: View {
         .help(event.origin == .linked ? "From Calendar. Change it in Calendar.app." : "")
     }
 
+    /// Quick-action icons appear on hover or selection, when the block has room for them.
+    private func showsQuickActions(height: CGFloat) -> Bool {
+        event.isUserEditable && (isHovering || isSelected) && moveOffset == 0
+            && height >= BlockQuickActions.buttonSize + 4
+            && frame.width >= BlockQuickActions.width(for: event) + 60
+    }
+
     private func resizeHandle(_ edge: Edge) -> some View {
         Color.clear
             .frame(height: 6)
@@ -303,16 +317,5 @@ struct EventBlock: View {
                     }
                     .onEnded { value in onResize(edge, Self.seconds(for: value.translation.height)) }
             )
-    }
-}
-
-extension CalendarEventKind {
-    var tint: Color {
-        switch self {
-        case .fixed: .blue
-        case .taskBlock: .purple
-        case .transit: .orange
-        case .buffer: .gray
-        }
     }
 }

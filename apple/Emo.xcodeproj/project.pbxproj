@@ -228,6 +228,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/EmoPhone-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Emo;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Emo shows your calendar events and plans your tasks around them.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Emo listens while you dictate a task.";
@@ -435,6 +436,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/EmoPhone-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Emo;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Emo shows your calendar events and plans your tasks around them.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Emo listens while you dictate a task.";

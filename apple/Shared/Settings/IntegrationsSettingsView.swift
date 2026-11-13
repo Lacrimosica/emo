@@ -5,6 +5,18 @@ import SwiftUI
 struct IntegrationsSettingsView: View {
     @Environment(CalendarSyncService.self) private var calendarSync
     @Environment(RemindersSyncService.self) private var remindersSync
+    @Environment(\.openURL) private var openURL
+
+    #if os(macOS)
+    private static let device = "Mac"
+    private static let calendarPrivacyURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
+    private static let remindersPrivacyURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!
+    #else
+    private static let device = "iPhone"
+    /// iOS can only open Emo's own page in Settings, which holds its Calendars and Reminders switches.
+    private static let calendarPrivacyURL = URL(string: UIApplication.openSettingsURLString)!
+    private static let remindersPrivacyURL = calendarPrivacyURL
+    #endif
 
     var body: some View {
         Form {
@@ -13,19 +25,12 @@ struct IntegrationsSettingsView: View {
                     get: { calendarSync.isEnabled },
                     set: { on in Task { await calendarSync.setEnabled(on) } }
                 ))
-                Text("Events from Calendar.app (iCloud, Google, Exchange and other accounts on this Mac) appear in Emo as fixed events, and Emo plans around them. Changes in Calendar.app show up automatically.")
+                Text("Events from \(PlatformNames.calendarApp) (iCloud, Google, Exchange and other accounts on this \(Self.device)) appear in Emo as fixed events, and Emo plans around them. Changes in \(PlatformNames.calendarApp) show up automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 if calendarSync.accessDenied {
-                    HStack {
-                        Label("Emo doesn't have access to your calendars.", systemImage: "lock")
-                        Spacer()
-                        Button("Open Privacy Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
-                        }
-                    }
-                    .font(.callout)
+                    AccessDeniedRow(message: "Emo doesn't have access to your calendars.") { openURL(Self.calendarPrivacyURL) }
                 }
             }
 
@@ -70,14 +75,7 @@ struct IntegrationsSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if remindersSync.accessDenied {
-                    HStack {
-                        Label("Emo doesn't have access to your reminders.", systemImage: "lock")
-                        Spacer()
-                        Button("Open Privacy Settings") {
-                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!)
-                        }
-                    }
-                    .font(.callout)
+                    AccessDeniedRow(message: "Emo doesn't have access to your reminders.") { openURL(Self.remindersPrivacyURL) }
                 }
             }
             if remindersSync.isEnabled, remindersSync.hasAccess {
@@ -88,12 +86,17 @@ struct IntegrationsSettingsView: View {
                             get: { remindersSync.selectedLists.contains(list.id) },
                             set: { _ in remindersSync.toggle(list.id) }
                         )) {
-                            HStack {
-                                Text("\(list.title) · \(list.accountTitle)")
-                                Spacer()
-                                Label("\(role.label) · \(role.schedulingNote)", systemImage: role.systemImage)
-                                    .font(.caption)
-                                    .foregroundStyle(role.isSchedulable ? Color.secondary : Color.orange)
+                            // Side by side on the Mac; stacked on a phone-width screen.
+                            ViewThatFits(in: .horizontal) {
+                                HStack {
+                                    Text("\(list.title) · \(list.accountTitle)")
+                                    Spacer()
+                                    ListRoleLabel(role: role)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(list.title) · \(list.accountTitle)")
+                                    ListRoleLabel(role: role)
+                                }
                             }
                         }
                     }
@@ -139,6 +142,37 @@ struct IntegrationsSettingsView: View {
             text += " · \(r.added) added, \(r.updated) changed, \(r.removed) removed"
         }
         return text
+    }
+}
+
+private struct ListRoleLabel: View {
+    let role: ListRole
+
+    var body: some View {
+        Label("\(role.label) · \(role.schedulingNote)", systemImage: role.systemImage)
+            .font(.caption)
+            .foregroundStyle(role.isSchedulable ? Color.secondary : Color.orange)
+    }
+}
+
+/// Access was refused: say so and link to where the user can grant it.
+private struct AccessDeniedRow: View {
+    let message: String
+    let openSettings: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                Label(message, systemImage: "lock")
+                Spacer()
+                Button("Open Privacy Settings", action: openSettings)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Label(message, systemImage: "lock")
+                Button("Open Settings", action: openSettings)
+            }
+        }
+        .font(.callout)
     }
 }
 

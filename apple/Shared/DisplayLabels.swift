@@ -1,6 +1,15 @@
 import EmoKit
 import SwiftUI
 
+/// What this platform calls Apple's Calendar app, for settings copy.
+enum PlatformNames {
+    #if os(macOS)
+    static let calendarApp = "Calendar.app"
+    #else
+    static let calendarApp = "the Calendar app"
+    #endif
+}
+
 extension EnergyCost {
     var label: String {
         switch self {
@@ -15,6 +24,17 @@ extension EnergyCost {
         case .low: .green
         case .medium: .orange
         case .high: .red
+        }
+    }
+}
+
+extension CalendarEventKind {
+    var tint: Color {
+        switch self {
+        case .fixed: .blue
+        case .taskBlock: .purple
+        case .transit: .orange
+        case .buffer: .gray
         }
     }
 }

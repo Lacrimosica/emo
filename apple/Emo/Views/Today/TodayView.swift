@@ -18,6 +18,7 @@ struct TodayView: View {
     @State private var planAfterCheckIn = false
     @State private var planMessage: String?
     @State private var isAddingTransit = false
+    @State private var isConfirmingUnscheduleAll = false
 
     init(day: LocalDay, today: LocalDay, onChangeDay: @escaping (LocalDay) -> Void, onCheckIn: @escaping () -> Void) {
         self.day = day
@@ -64,7 +65,7 @@ struct TodayView: View {
             }
 
             if pinnedConflictCount > 0 {
-                Label("\(pinnedConflictCount) pinned block\(pinnedConflictCount == 1 ? "" : "s") overlap\(pinnedConflictCount == 1 ? "s" : "") a calendar event. Move or unpin \(pinnedConflictCount == 1 ? "it" : "them") if needed.",
+                Label(DayScreen.pinnedConflictMessage(count: pinnedConflictCount),
                       systemImage: "exclamationmark.triangle.fill")
                     .font(.callout)
                     .foregroundStyle(.orange)
@@ -110,9 +111,16 @@ struct TodayView: View {
                 Button("Plan Day", systemImage: "wand.and.stars", action: planDay)
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Fill free time with backlog tasks (⌘R)")
+                Button("Unschedule All", systemImage: "calendar.badge.minus") { isConfirmingUnscheduleAll = true }
+                    .help("Remove every upcoming task block, pinned ones included")
             }
         }
         .sheet(isPresented: $isAddingTransit) { TransitSheet(day: day, today: today) }
+        .confirmationDialog("Unschedule all tasks?", isPresented: $isConfirmingUnscheduleAll) {
+            Button("Unschedule All", role: .destructive, action: unscheduleAll)
+        } message: {
+            Text("Removes every upcoming task block on every day, pinned ones included. Calendar events and past blocks stay.")
+        }
         .onChange(of: day) {
             selectedEventID = nil
             editingEventID = nil
@@ -133,64 +141,27 @@ struct TodayView: View {
     }
 
     private func planDay() {
-        // Today's plan is sized by today's energy, so ask first. Other days fall back to the default.
-        if day == today, checkIns.isEmpty {
+        switch DayScreen.plan(day, today: today, hasCheckIn: !checkIns.isEmpty, context: modelContext) {
+        case .needsCheckIn:
             planAfterCheckIn = true
             onCheckIn()
-            return
-        }
-        do {
-            if try Backlog(context: modelContext).openTasks().isEmpty {
-                withAnimation { planMessage = "Your backlog is empty. Add some tasks, then plan." }
-                return
-            }
-            let summary = try DayPlanning(context: modelContext).plan(day)
-            withAnimation { planMessage = Self.describe(summary, assumedEnergy: checkIns.isEmpty) }
-        } catch {
-            planMessage = "Couldn't plan the day: \(error.localizedDescription)"
+        case .message(let message):
+            withAnimation { planMessage = message }
         }
     }
 
-    static func describe(_ s: DayPlanning.Summary, assumedEnergy: Bool) -> String {
-        var parts: [String] = []
-        if s.planned.planned == 0, s.spill.planned == 0, s.unplacedTaskCount == 0 {
-            parts.append("Everything in your backlog is already planned.")
-        } else if s.planned.planned > 0 {
-            parts.append("Planned \((s.planned.planned / 3600).hoursLabel) across \(s.planned.taskCount) task\(s.planned.taskCount == 1 ? "" : "s").")
-        } else {
-            parts.append(s.planned.day == LocalDay.today() ? "Nothing more fits today." : "Nothing fits on this day.")
-        }
-        if s.spill.planned > 0 {
-            parts.append("\((s.spill.planned / 3600).hoursLabel) moved to \(s.spill.day.start().formatted(.dateTime.weekday(.wide))).")
-        }
-        if s.unplacedTaskCount > 0 {
-            parts.append("\(s.unplacedTaskCount) task\(s.unplacedTaskCount == 1 ? "" : "s") still in the backlog.")
-        }
-        if assumedEnergy { parts.append("No check-in for this day, so medium energy was assumed.") }
-        return parts.joined(separator: " ")
+    private func unscheduleAll() {
+        let message = DayScreen.unscheduleAll(context: modelContext)
+        withAnimation { planMessage = message }
     }
 
     private var allDayEvents: [CalendarEvent] { dayEvents.filter(\.isAllDay) }
 
-    /// Pinned task blocks that collide with a timed calendar event (pinned blocks are never moved
-    /// automatically, so the user decides).
-    private var pinnedConflictCount: Int {
-        let busy = dayEvents.filter { $0.origin == .linked && !$0.isAllDay }
-        return dayEvents.filter { block in
-            block.kind == .taskBlock && block.isLocked && busy.contains { $0.start < block.end && block.start < $0.end }
-        }.count
-    }
+    private var pinnedConflictCount: Int { DayScreen.pinnedConflictCount(in: dayEvents) }
 
     /// Creates a one-hour event at the next quarter hour today, or 9:00 on other days.
     private func newEvent() {
-        let calendar = Calendar.current
-        let start: Date
-        if day == today {
-            let next = Date.now.addingTimeInterval(7.5 * 60).snapped(toMinutes: 15, calendar: calendar)
-            start = min(next, day.end(in: calendar).addingTimeInterval(-3600))
-        } else {
-            start = calendar.date(byAdding: .hour, value: 9, to: day.start(in: calendar))!
-        }
+        let start = DayScreen.newEventStart(on: day, today: today)
         let engine = CalendarEngine(context: modelContext)
         guard let event = try? engine.createFixedEvent(title: "New Event", start: start, end: start.addingTimeInterval(3600))
         else { return }

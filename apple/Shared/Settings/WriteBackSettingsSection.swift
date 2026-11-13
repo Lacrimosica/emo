@@ -8,7 +8,7 @@ struct WriteBackSettingsSection: View {
 
     var body: some View {
         Section {
-            Toggle("Show my plan in Calendar.app", isOn: Binding(
+            Toggle("Show my plan in \(PlatformNames.calendarApp)", isOn: Binding(
                 get: { calendarSync.isWriteBackEnabled },
                 set: { on in
                     if on { Task { await calendarSync.setWriteBack(true) } } else { confirmingOff = true }
@@ -18,11 +18,11 @@ struct WriteBackSettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .confirmationDialog("Stop showing your plan in Calendar.app?", isPresented: $confirmingOff) {
+        .confirmationDialog("Stop showing your plan in \(PlatformNames.calendarApp)?", isPresented: $confirmingOff) {
             Button("Remove the Emo Calendar", role: .destructive) { Task { await calendarSync.setWriteBack(false, removeExisting: true) } }
             Button("Keep Its Events") { Task { await calendarSync.setWriteBack(false, removeExisting: false) } }
         } message: {
-            Text("You can delete the Emo calendar and its events, or leave them in Calendar.app.")
+            Text("You can delete the Emo calendar and its events, or leave them in \(PlatformNames.calendarApp).")
         }
     }
 }

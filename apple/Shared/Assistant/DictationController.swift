@@ -2,7 +2,7 @@ import AVFoundation
 import Observation
 import Speech
 
-/// Live dictation for the task chat: microphone → on-device speech recognition (when the Mac
+/// Live dictation for the task chat: microphone → on-device speech recognition (when the device
 /// supports it), with partial results as the user speaks.
 @MainActor
 @Observable
@@ -24,7 +24,11 @@ final class DictationController {
         errorMessage = nil
         transcript = ""
         guard await Self.authorize() else {
+            #if os(macOS)
             errorMessage = "Allow Emo to use the microphone and speech recognition in System Settings › Privacy & Security."
+            #else
+            errorMessage = "Allow Emo to use the microphone and speech recognition in Settings › Apps › Emo."
+            #endif
             return
         }
         guard let recognizer = SFSpeechRecognizer(locale: .current) ?? SFSpeechRecognizer(), recognizer.isAvailable else {
@@ -86,6 +90,9 @@ final class DictationController {
         request = nil
         task = nil
         isRecording = false
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        #endif
     }
 
     /// Built outside the main actor: the audio engine calls it on its own thread.

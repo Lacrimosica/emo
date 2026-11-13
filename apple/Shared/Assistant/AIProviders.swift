@@ -1,8 +1,8 @@
 import EmoKit
 import SwiftUI
 
-/// The AI provider choice and its non-secret settings. Stored per Mac (UserDefaults), since e.g.
-/// a local Ollama host only makes sense on this machine; API keys live in the Keychain.
+/// The AI provider choice and its non-secret settings. Stored per device (UserDefaults), since e.g.
+/// an Ollama host depends on where the app runs; API keys live in that device's Keychain.
 enum AISettingsKey {
     static let provider = "ai.provider"
     static let ollamaHost = "ai.ollama.host"

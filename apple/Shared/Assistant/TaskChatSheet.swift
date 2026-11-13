@@ -109,7 +109,11 @@ struct TaskChatSheet: View {
             ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
         }
         .sheet(item: $reviewing) { draft in
+            #if os(macOS)
             TaskEditorSheet(task: nil, initialDraft: draft, onSaved: { dismiss() })
+            #else
+            NavigationStack { TaskEditorSheet(task: nil, initialDraft: draft, onSaved: { dismiss() }) }
+            #endif
         }
         .task {
             if case .unavailable(let why) = await provider.availability() { unavailableReason = why }

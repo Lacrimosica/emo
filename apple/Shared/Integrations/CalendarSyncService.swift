@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Keeps the internal calendar in step with Calendar.app: on launch, when Calendar.app changes
 /// (debounced), when the app becomes active, and on demand. Settings are per Mac, because
-/// EventKit calendar identifiers are device-specific.
+/// EventKit calendar identifiers are device-specific (the Mac and iPhone apps each have their own).
 @MainActor
 @Observable
 final class CalendarSyncService {
