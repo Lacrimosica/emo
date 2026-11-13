@@ -62,6 +62,9 @@ public struct ReminderReconciler {
                     task.needsReview = stillNeedsReview
                     Self.assign(reminder.list, to: task)
                     task.notes = Self.notes(reminder.notes)
+                    // Edits Emo hasn't written yet stay applied on top of the new upstream notes.
+                    let pending = ReminderNotesWriteBack.decode(task.pendingNotesEditsJSON)
+                    if !pending.isEmpty { task.notes = Self.notes(task.parsedNotes.merging(pending)) }
                     result.updated += 1
                 }
                 // Every sync, not just on edits, so goals in notes imported before goals existed land too.

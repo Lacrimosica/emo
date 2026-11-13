@@ -41,6 +41,9 @@ public final class TaskItem {
     /// `LocalDay.key` of the day that goal was first seen. A goal is about the day (or week) it was
     /// set, so one left over from an earlier day decays to normal priority (see `goal(on:)`).
     public var whenSeenDayKey: String?
+    /// Keyed-line edits waiting to be written to the integration item's notes (JSON of
+    /// `[key: value or null]`, see `ReminderNotesWriteBack`). Already applied to `notes`.
+    public var pendingNotesEditsJSON: String?
 
     public init(
         name: String,

@@ -107,8 +107,36 @@ final class RemindersSyncService {
         guard isEnabled, hasAccess else { return }
         let selected = selectedLists
         Task {
+            // Write Emo's pending notes edits first, so the snapshot already contains them.
+            await flushNotesEdits()
             let snapshot = await source.snapshot(selected: selected)
             run { try ReminderReconciler(context: context).apply(snapshot) }
+        }
+    }
+
+    // MARK: Notes write-back (ticket 32)
+
+    /// Queues keyed-line edits for the reminder behind `task` (applied in Emo at once) and writes
+    /// them to Reminders now if possible; otherwise they're retried on the next sync.
+    @discardableResult
+    func writeNotes(_ changes: ReminderNotesWriteBack.Changes, for task: TaskItem) async -> ReminderNotesWriteBack.Changes {
+        do {
+            let needed = try ReminderNotesWriteBack(context: context).queue(changes, for: task)
+            if !needed.isEmpty { await flushNotesEdits() }
+            return needed
+        } catch {
+            errorMessage = "Couldn't save the notes change: \(error.localizedDescription)"
+            return [:]
+        }
+    }
+
+    private func flushNotesEdits() async {
+        guard isEnabled, hasAccess else { return }
+        do {
+            let result = try await ReminderNotesWriteBack(context: context).flush(using: AppleRemindersWriter(store: source.store))
+            if let error = result.lastError { errorMessage = "Couldn't update a reminder's notes (will retry): \(error)" }
+        } catch {
+            errorMessage = "Couldn't update reminders' notes: \(error.localizedDescription)"
         }
     }
 
