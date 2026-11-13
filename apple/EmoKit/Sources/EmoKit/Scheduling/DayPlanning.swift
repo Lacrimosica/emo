@@ -20,6 +20,8 @@ public struct DayPlanning {
         public var spill: DayResult
         /// Tasks with work left that fit on neither day.
         public var unplacedTaskCount: Int
+        /// Names of tasks marked `when: today` for the planned day that didn't fully fit on it.
+        public var unmetTodayGoals: [String] = []
     }
 
     private let context: ModelContext
@@ -51,7 +53,8 @@ public struct DayPlanning {
             PlannableTask(id: t.id,
                           remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
-                          transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0)
+                          transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
+                          goal: t.goal(on: day, calendar: calendar))
         }
 
         // Day one gets every task it may hold; day two gets day one's overflow plus tasks that
@@ -62,8 +65,10 @@ public struct DayPlanning {
         let secondTasks = first.overflow.filter { tasksByID[$0.id]?.isPlannable(on: next) ?? false } + laterTasks
         let second = try planAndWrite(next, tasks: secondTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
 
+        // A today goal that didn't fit is reported, not silently moved to tomorrow.
+        let unmet = first.overflow.filter { $0.goal == .today }.compactMap { tasksByID[$0.id]?.name }
         return Summary(planned: result(first, day), spill: result(second, next),
-                       unplacedTaskCount: second.overflow.count)
+                       unplacedTaskCount: second.overflow.count, unmetTodayGoals: unmet)
     }
 
     private func from(_ day: LocalDay, _ now: Date) -> Date {

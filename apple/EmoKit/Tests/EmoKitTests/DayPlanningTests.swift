@@ -174,3 +174,87 @@ import Testing
         #expect(summary.spill.planned == 3600)
     }
 }
+
+/// Ticket 22: `when: today` / `when: week` goals from reminder notes.
+@MainActor
+@Suite struct PlanningGoalTests {
+    let container = try! EmoStore.makeContainer(.inMemory)
+    var context: ModelContext { container.mainContext }
+    let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Europe/Rome")!
+        return c
+    }()
+    /// Friday 13 November 2026.
+    let day = LocalDay(year: 2026, month: 11, day: 13)
+
+    func at(_ hour: Int, on d: LocalDay? = nil) -> Date {
+        calendar.date(bySettingHour: hour, minute: 0, second: 0, of: (d ?? day).start(in: calendar))!
+    }
+
+    func task(_ name: String, hours: Double, cost: EnergyCost = .medium, deadline: Date? = nil,
+              when goal: ReminderNotes.When? = nil, seen: LocalDay? = nil) throws -> TaskItem {
+        let t = try Backlog(context: context).add(TaskDraft(name: name, estimatedHours: hours, energyCost: cost, deadline: deadline))
+        t.noteWhenGoal(goal, seenOn: seen ?? day)
+        return t
+    }
+
+    func firstPlanned(on d: LocalDay) throws -> String? {
+        try CalendarEngine(context: context).events(on: d, calendar: calendar)
+            .filter { $0.kind == .taskBlock }.min { $0.start < $1.start }?.title
+    }
+
+    @Test func todayGoalBeatsADeadline() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 1, for: day)   // 2h budget: room for one
+        try task("Urgent report", hours: 2, cost: .high, deadline: at(18))
+        try task("Send CV", hours: 2, cost: .low, when: .today)
+        let summary = try DayPlanning(context: context, calendar: calendar).plan(day, now: at(8))
+        #expect(try firstPlanned(on: day) == "Send CV")
+        #expect(summary.unmetTodayGoals.isEmpty)
+    }
+
+    @Test func aTodayGoalThatDoesntFitIsReported() throws {
+        try CheckIns(context: context).record(mood: 3, energy: 1, for: day)   // 2h budget
+        try task("Send CV", hours: 3, when: .today)
+        let summary = try DayPlanning(context: context, calendar: calendar).plan(day, now: at(8))
+        #expect(summary.unmetTodayGoals == ["Send CV"])
+    }
+
+    @Test func staleTodayGoalDecaysToNormalPriority() throws {
+        let yesterday = day.adding(days: -1, calendar: calendar)
+        let t = try task("Send CV", hours: 1, when: .today, seen: yesterday)
+        #expect(t.goal(on: yesterday, calendar: calendar) == .today)
+        #expect(t.goal(on: day, calendar: calendar) == nil)
+    }
+
+    @Test func weekGoalActsLikeASundayDeadline() throws {
+        let t = try task("Portfolio", hours: 1, when: .week)   // seen Friday
+        let sunday = LocalDay(year: 2026, month: 11, day: 15)
+        #expect(t.goal(on: day, calendar: calendar) == .week(endsAt: sunday.end(in: calendar)))
+        #expect(t.goal(on: sunday, calendar: calendar) != nil)
+        #expect(t.goal(on: sunday.adding(days: 1, calendar: calendar), calendar: calendar) == nil)
+
+        // On Friday a week goal ranks like a task due in two days: ahead of an older, undated one.
+        let undated = PlannableTask(id: UUID(), remaining: 3600, energyCost: .medium, deadline: nil, createdAt: .distantPast)
+        let weekly = PlannableTask(id: t.id, remaining: 3600, energyCost: .medium, deadline: nil, createdAt: .now,
+                                   goal: t.goal(on: day, calendar: calendar))
+        #expect(DayPlanner.prioritized([undated, weekly], now: at(8)).first?.id == t.id)
+    }
+
+    @Test func seenDayOnlyChangesWhenTheGoalDoes() throws {
+        let t = try task("Send CV", hours: 1, when: .today)
+        t.noteWhenGoal(.today, seenOn: day.adding(days: 1, calendar: calendar))
+        #expect(t.whenSeenDayKey == day.key)
+        t.noteWhenGoal(nil, seenOn: day)
+        #expect(t.whenGoalRaw == nil && t.whenSeenDayKey == nil)
+    }
+
+    @Test func goalsAreReadFromReminderNotesOnSync() throws {
+        let reconciler = ReminderReconciler(context: context, calendar: calendar)
+        let reminder = ExternalReminder(externalID: "1", sourceID: "home", title: "Send CV",
+                                        list: .infer(fromTitle: "NA - Personal"), notes: "when: today")
+        try reconciler.apply(ReminderSnapshot(provider: "apple-reminders", sources: ["home"], reminders: [reminder]), now: at(9))
+        let t = try #require(try Backlog(context: context).openTasks().first)
+        #expect(t.goal(on: day, calendar: calendar) == .today)
+    }
+}

@@ -64,6 +64,8 @@ public struct ReminderReconciler {
                     task.notes = Self.notes(reminder.notes)
                     result.updated += 1
                 }
+                // Every sync, not just on edits, so goals in notes imported before goals existed land too.
+                if !task.isCompleted { task.noteWhenGoal(task.parsedNotes.when, seenOn: LocalDay(now, calendar: calendar)) }
                 link.contentHash = reminder.contentHash
                 link.sourceID = reminder.sourceID
                 link.lastSeenAt = now
@@ -73,6 +75,7 @@ public struct ReminderReconciler {
                 task.needsReview = true
                 Self.assign(reminder.list, to: task)
                 task.notes = Self.notes(reminder.notes)
+                task.noteWhenGoal(task.parsedNotes.when, seenOn: LocalDay(now, calendar: calendar))
                 let newLink = ExternalLink(provider: snapshot.provider, externalID: reminder.externalID,
                                            sourceID: reminder.sourceID, contentHash: reminder.contentHash, now: now)
                 newLink.taskID = task.id

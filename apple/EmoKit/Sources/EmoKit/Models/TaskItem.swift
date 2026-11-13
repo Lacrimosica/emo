@@ -36,6 +36,11 @@ public final class TaskItem {
     /// Notes from the integration item (a reminder's notes), raw. Emo reads the keyed lines
     /// (`ReminderNotes`) and passes the rest to the AI as the user wrote it.
     public var notes: String?
+    /// The user's TODAY / THIS WEEK goal from the notes' `when:` line (`ReminderNotes.When` raw value).
+    public var whenGoalRaw: String?
+    /// `LocalDay.key` of the day that goal was first seen. A goal is about the day (or week) it was
+    /// set, so one left over from an earlier day decays to normal priority (see `goal(on:)`).
+    public var whenSeenDayKey: String?
 
     public init(
         name: String,
@@ -83,6 +88,29 @@ public final class TaskItem {
     public var isSchedulable: Bool { listRole?.isSchedulable ?? true }
 
     public var isCompleted: Bool { completedAt != nil }
+
+    /// Records the `when:` goal from the notes. The day it was seen only changes when the goal does,
+    /// so re-reading the same notes later doesn't refresh a stale goal.
+    public func noteWhenGoal(_ goal: ReminderNotes.When?, seenOn day: LocalDay) {
+        guard goal?.rawValue != whenGoalRaw else { return }
+        whenGoalRaw = goal?.rawValue
+        whenSeenDayKey = goal == nil ? nil : day.key
+    }
+
+    /// The goal that's still active on `day`: `today` only on the day it was set, `week` until the
+    /// end of that week's Sunday. Otherwise nil (normal priority).
+    public func goal(on day: LocalDay, calendar: Calendar = .current) -> PlanningGoal? {
+        guard let raw = whenGoalRaw, let goal = ReminderNotes.When(rawValue: raw),
+              let seen = whenSeenDayKey.flatMap(LocalDay.init(key:)), day >= seen else { return nil }
+        switch goal {
+        case .today:
+            return day == seen ? .today : nil
+        case .week:
+            let weekday = calendar.component(.weekday, from: seen.start(in: calendar))   // Sunday = 1
+            let sunday = seen.adding(days: (8 - weekday) % 7, calendar: calendar)
+            return day <= sunday ? .week(endsAt: sunday.end(in: calendar)) : nil
+        }
+    }
 
     /// The keyed lines and free text of `notes`.
     public var parsedNotes: ReminderNotes { ReminderNotes(notes ?? "") }

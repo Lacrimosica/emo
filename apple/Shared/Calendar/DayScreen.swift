@@ -52,6 +52,10 @@ enum DayScreen {
         if s.unplacedTaskCount > 0 {
             parts.append("\(s.unplacedTaskCount) task\(s.unplacedTaskCount == 1 ? "" : "s") still in the backlog.")
         }
+        if !s.unmetTodayGoals.isEmpty {
+            let names = s.unmetTodayGoals.map { "“\($0)”" }.formatted(.list(type: .and))
+            parts.append("\(names) \(s.unmetTodayGoals.count == 1 ? "is" : "are") marked for today but didn't fit.")
+        }
         if assumedEnergy { parts.append("No check-in for this day, so medium energy was assumed.") }
         return parts.joined(separator: " ")
     }

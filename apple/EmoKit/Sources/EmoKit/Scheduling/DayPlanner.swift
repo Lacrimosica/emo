@@ -35,6 +35,14 @@ public struct PlannerSettings: Equatable, Sendable {
     }
 }
 
+/// The user's goal for a task (from a reminder's `when:` line, ticket 22).
+public enum PlanningGoal: Equatable, Sendable {
+    /// Must be planned today: ranks above every deadline.
+    case today
+    /// Must be done by the end of the week: treated like a deadline at `endsAt`.
+    case week(endsAt: Date)
+}
+
 /// A task as the planner sees it: just what affects placement.
 public struct PlannableTask: Equatable, Sendable {
     public var id: UUID
@@ -44,15 +52,23 @@ public struct PlannableTask: Equatable, Sendable {
     public var createdAt: Date
     /// Travel time needed before the task's first block of the day (0 = none).
     public var transit: TimeInterval
+    public var goal: PlanningGoal?
 
     public init(id: UUID, remaining: TimeInterval, energyCost: EnergyCost, deadline: Date?, createdAt: Date,
-                transit: TimeInterval = 0) {
+                transit: TimeInterval = 0, goal: PlanningGoal? = nil) {
         self.id = id
         self.remaining = remaining
         self.energyCost = energyCost
         self.deadline = deadline
         self.createdAt = createdAt
         self.transit = transit
+        self.goal = goal
+    }
+
+    /// The deadline planning works to: the task's own, or the end of the week for a week goal.
+    var effectiveDeadline: Date? {
+        guard case .week(let endsAt) = goal else { return deadline }
+        return deadline.map { min($0, endsAt) } ?? endsAt
     }
 }
 
@@ -155,7 +171,8 @@ public enum DayPlanner {
         return DayPlan(blocks: blocks, overflow: overflow)
     }
 
-    /// Highest score first: energy cost, plus urgency as the deadline nears. Older tasks win ties.
+    /// Highest score first: a today goal above all, then energy cost plus urgency as the deadline
+    /// (or a week goal's Sunday) nears. Older tasks win ties.
     static func prioritized(_ tasks: [PlannableTask], now: Date) -> [PlannableTask] {
         func score(_ t: PlannableTask) -> Int {
             var s: Int
@@ -164,7 +181,8 @@ public enum DayPlanner {
             case .medium: s = 50
             case .low: s = 10
             }
-            if let deadline = t.deadline {
+            if t.goal == .today { s += 10_000 }
+            if let deadline = t.effectiveDeadline {
                 let daysLeft = deadline.timeIntervalSince(now) / 86_400
                 if daysLeft <= 1 { s += 500 } else if daysLeft <= 3 { s += 200 } else if daysLeft <= 7 { s += 50 }
             }
