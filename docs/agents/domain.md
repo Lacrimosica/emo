@@ -54,11 +54,8 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 Single-context: one `GLOSSARY.md` and one `docs/adr/` at the repo root.
 
-## Migration context
+## Codebase context
 
-Emo is being rewritten from a SvelteKit + Cloudflare web app into a native SwiftUI macOS app.
-
-- **Authoritative code:** `apple/` (the Xcode app + `EmoKit` Swift package).
-- **Legacy, reference only:** `client/` (SvelteKit) and `server/` (Hono/D1). Read them to port *behaviour*; don't adopt their naming. Legacy terms (e.g. `schedule_block`, `fixed_event`) appear in `GLOSSARY.md` only as aliases under the new term.
-- **Core boundary:** the internal calendar is the source of truth. Integrations (Apple Calendar, Reminders, Google) only report changes; the calendar engine reconciles them. Flag any code or proposal where an integration writes to the internal calendar directly.
-- Once `apple/` reaches feature parity, `client/` and `server/` get deleted and this section shrinks.
+- **All code lives in `apple/`:** the Xcode app (`apple/Emo`) and the `EmoKit` Swift package (`apple/EmoKit`).
+- The original SvelteKit + Cloudflare web app was removed after the native rewrite reached parity. Read it from git history only to understand old behaviour (`git log -- client server`). Its terms (`schedule_block`, `fixed_event`) appear in `GLOSSARY.md` only as aliases.
+- **Core boundary:** the internal calendar is the source of truth. Integrations (Apple Calendar, Reminders) only report snapshots, and the engine's reconcilers apply them. Flag any code or proposal where an integration writes to the internal calendar directly.

@@ -12,7 +12,7 @@ Default five-role vocabulary, recorded as a `Status:` line in each issue file. S
 
 ### Domain docs
 
-Single-context: root `GLOSSARY.md` + `docs/adr/`; `client/` and `server/` are legacy reference only. See `docs/agents/domain.md`.
+Single-context: root `GLOSSARY.md` + `docs/adr/`; all code is in `apple/` (the old web app is only in git history). See `docs/agents/domain.md`.
 
 ## Native app (apple/)
 
