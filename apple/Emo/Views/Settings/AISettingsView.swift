@@ -13,6 +13,9 @@ struct AISettingsView: View {
     @State private var keyMessage: String?
     @State private var testResult: TestResult?
     @State private var isTesting = false
+    /// Bumped when a key or host is submitted, to reload that provider's model list.
+    @State private var claudeToken = UUID()
+    @State private var ollamaToken = UUID()
 
     private let keychain = KeychainStore()
 
@@ -36,9 +39,12 @@ struct AISettingsView: View {
             case .ollama:
                 Section("Ollama") {
                     TextField("Host", text: $ollamaHost, prompt: Text(OllamaProvider.defaultHost))
-                    TextField("Model", text: $ollamaModel, prompt: Text(OllamaProvider.defaultModel))
+                        .onSubmit { ollamaToken = UUID() }
                     SecureField("API key (Ollama Cloud only)", text: $ollamaKey)
-                        .onSubmit { saveKey(ollamaKey, .ollamaAPIKey) }
+                        .onSubmit { saveKey(ollamaKey, .ollamaAPIKey); ollamaToken = UUID() }
+                    ModelPicker(selection: $ollamaModel,
+                                makeCatalog: { OllamaProvider(host: ollamaHost, model: ollamaModel, apiKey: ollamaKey) },
+                                reloadToken: ollamaToken.uuidString)
                     Text("Use http://localhost:11434 for a local Ollama, or https://ollama.com with an API key.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -46,9 +52,11 @@ struct AISettingsView: View {
             case .claude:
                 Section("Claude") {
                     SecureField("Anthropic API key", text: $claudeKey)
-                        .onSubmit { saveKey(claudeKey, .claudeAPIKey) }
-                    TextField("Model", text: $claudeModel, prompt: Text(ClaudeProvider.defaultModel))
-                    Text("Requests are billed to your Anthropic account. Keys are stored in your Keychain.")
+                        .onSubmit { saveKey(claudeKey, .claudeAPIKey); claudeToken = UUID() }
+                    ModelPicker(selection: $claudeModel,
+                                makeCatalog: { ClaudeProvider(apiKey: claudeKey, model: claudeModel) },
+                                reloadToken: claudeToken.uuidString)
+                    Text("Requests are billed to your Anthropic account. Haiku is the cheapest and is plenty for task chat. Keys are stored in your Keychain.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

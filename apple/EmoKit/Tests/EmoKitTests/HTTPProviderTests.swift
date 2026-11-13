@@ -24,9 +24,11 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
 final class SequenceTransport: HTTPTransport, @unchecked Sendable {
     private var responses: [(Int, String)]
     private(set) var bodies: [[String: Any]] = []
+    private(set) var urls: [URL] = []
     init(_ responses: [(Int, String)]) { self.responses = responses }
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        bodies.append(try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any])
+        urls.append(request.url!)
+        if let body = request.httpBody { bodies.append(try JSONSerialization.jsonObject(with: body) as! [String: Any]) }
         let (status, body) = responses.removeFirst()
         return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
     }
@@ -43,7 +45,7 @@ final class SequenceTransport: HTTPTransport, @unchecked Sendable {
 
     @Test func buildsAStructuredOutputRequest() async throws {
         let stub = StubTransport(body: reply(taskJSON))
-        _ = try await ClaudeProvider(apiKey: "sk-test", transport: stub)
+        _ = try await ClaudeProvider(apiKey: "sk-test", model: "claude-opus-5-5", transport: stub)
             .generate(ClarifierReply.self, instructions: "be helpful", conversation: conversation)
 
         let request = try #require(stub.requests.first)
@@ -64,6 +66,27 @@ final class SequenceTransport: HTTPTransport, @unchecked Sendable {
         #expect((format["schema"] as? [String: Any])?["additionalProperties"] as? Bool == false)
         let messages = try #require(body["messages"] as? [[String: String]])
         #expect(messages == [["role": "user", "content": "report, 2 hours, for my boss"]])
+    }
+
+    @Test func haikuIsTheDefaultAndSendsNoFallback() async throws {
+        let stub = StubTransport(body: reply(taskJSON))
+        _ = try await ClaudeProvider(apiKey: "k", transport: stub)
+            .generate(ClarifierReply.self, instructions: "", conversation: conversation)
+        let body = try stub.body()
+        #expect(body["model"] as? String == "claude-haiku-5-5")
+        #expect(body["fallbacks"] == nil)
+        #expect(stub.requests.first?.value(forHTTPHeaderField: "anthropic-beta") == nil)
+    }
+
+    @Test func listsModelsAcrossPages() async throws {
+        let stub = SequenceTransport([
+            (200, #"{"data":[{"id":"claude-haiku-5-5","display_name":"Claude Haiku 5.5"}],"has_more":true,"last_id":"claude-haiku-5-5"}"#),
+            (200, #"{"data":[{"id":"claude-opus-5-5","display_name":"Claude Opus 5.5"}],"has_more":false,"last_id":"claude-opus-5-5"}"#),
+        ])
+        let models = try await ClaudeProvider(apiKey: "k", transport: stub).availableModels()
+        #expect(models == [ModelInfo(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5"),
+                           ModelInfo(id: "claude-opus-5-5", displayName: "Claude Opus 5.5")])
+        #expect(stub.urls.last?.query?.contains("after_id=claude-haiku-5-5") == true)
     }
 
     @Test func parsesTheTextBlockIgnoringThinking() async throws {
@@ -174,6 +197,13 @@ final class SequenceTransport: HTTPTransport, @unchecked Sendable {
         #expect(stub.bodies.count == 2)
         #expect(stub.bodies[0]["think"] as? Bool == false)
         #expect(stub.bodies[1]["think"] == nil)
+    }
+
+    @Test func listsPulledModels() async throws {
+        let stub = StubTransport(body: #"{"models":[{"name":"gemma4:12b"},{"name":"llama3:8b"}]}"#)
+        let models = try await OllamaProvider(host: "http://localhost:11434/", transport: stub).availableModels()
+        #expect(models.map(\.id) == ["gemma4:12b", "llama3:8b"])
+        #expect(stub.requests.first?.url?.absoluteString == "http://localhost:11434/api/tags")
     }
 
     @Test func malformedContentIsABadResponse() async {

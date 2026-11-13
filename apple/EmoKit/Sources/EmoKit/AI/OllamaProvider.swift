@@ -9,10 +9,10 @@ public struct OllamaProvider: LLMProvider {
     public let id = "ollama"
     public let displayName = "Ollama"
 
-    private let host: String
-    private let model: String
-    private let apiKey: String?
-    private let transport: any HTTPTransport
+    let host: String
+    let model: String
+    let apiKey: String?
+    let transport: any HTTPTransport
 
     public init(host: String = OllamaProvider.defaultHost, model: String = OllamaProvider.defaultModel,
                 apiKey: String? = nil, transport: any HTTPTransport = URLSessionTransport()) {

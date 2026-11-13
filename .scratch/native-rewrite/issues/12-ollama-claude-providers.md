@@ -27,3 +27,5 @@ Verified:
 - In the sandboxed app, Test Connection against Ollama returned "Working. Proposed “Buy milk”.", and a Keychain save and delete worked through the UI.
 
 Claude was not called live (no key used).
+
+2026-11-13 (follow-up): The Claude default is now `claude-haiku-5-5` (the user asked for a low-cost model). The server-side refusal fallback is sent only for models that accept it (Opus 5.x, Sonnet 5.5, Fable 5.x); Haiku 5.5 has none. Settings › AI model fields are now dropdowns, filled from the Anthropic Models API (`GET /v1/models`, paginated, no tokens used) and Ollama `/api/tags`, with a refresh button and a text-field fallback when listing fails. Verified in the app: the dropdown listed 15 models from the user's account with Haiku 5.5 selected. The user's own Test Connection on Claude succeeded.

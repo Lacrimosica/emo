@@ -3,9 +3,11 @@ import Foundation
 /// Claude via the Anthropic Messages API (raw HTTP: there's no official Swift SDK).
 ///
 /// Structured output uses `output_config.format` (JSON Schema), which guarantees a parseable reply;
-/// forced tool use isn't available on current models. Server-side refusal fallback is enabled.
+/// forced tool use isn't available on current models. Server-side refusal fallback is enabled on
+/// the models that support it.
 public struct ClaudeProvider: LLMProvider {
-    public static let defaultModel = "claude-opus-5-5"
+    /// Haiku: cheap and fast, plenty for one-question clarification.
+    public static let defaultModel = "claude-haiku-5-5"
     static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     static let apiVersion = "2026-10-21"
     static let fallbackBeta = "server-side-fallback-2026-07-01"
@@ -13,9 +15,14 @@ public struct ClaudeProvider: LLMProvider {
     public let id = "claude"
     public let displayName = "Claude"
 
-    private let apiKey: String
-    private let model: String
-    private let transport: any HTTPTransport
+    let apiKey: String
+    let model: String
+    let transport: any HTTPTransport
+
+    /// Models that accept the server-side `fallbacks` parameter (Haiku doesn't).
+    static func supportsServerFallback(_ model: String) -> Bool {
+        model.hasPrefix("claude-opus-5") || model.hasPrefix("claude-sonnet-5-5") || model.hasPrefix("claude-fable-5")
+    }
 
     public init(apiKey: String, model: String = ClaudeProvider.defaultModel, transport: any HTTPTransport = URLSessionTransport()) {
         self.apiKey = apiKey
@@ -48,8 +55,9 @@ public struct ClaudeProvider: LLMProvider {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(Self.apiVersion, forHTTPHeaderField: "anthropic-version")
-        request.setValue(Self.fallbackBeta, forHTTPHeaderField: "anthropic-beta")
-        let body: [String: Any] = [
+        let fallback = Self.supportsServerFallback(model)
+        if fallback { request.setValue(Self.fallbackBeta, forHTTPHeaderField: "anthropic-beta") }
+        var body: [String: Any] = [
             "model": model,
             "max_tokens": 4000,
             "system": instructions,
@@ -58,8 +66,8 @@ public struct ClaudeProvider: LLMProvider {
                 "effort": "low",   // short, simple task
                 "format": ["type": "json_schema"],
             ],
-            "fallbacks": "default",
         ]
+        if fallback { body["fallbacks"] = "default" }
         request.httpBody = try HTTPProviderSupport.jsonBody(body, insertingSchema: schema, at: ["output_config", "format", "schema"])
         return request
     }
