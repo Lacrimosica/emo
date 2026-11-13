@@ -1,0 +1,47 @@
+# Xcode project definition. Regenerate the project with: `cd apple && xcodegen`
+# The app's sources use a synced folder, so adding files in Xcode does not require regenerating.
+name: Emo
+options:
+  bundleIdPrefix: dev.emo
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  EmoKit:
+    path: EmoKit
+targets:
+  Emo:
+    type: application
+    platform: macOS
+    sources:
+      - path: Emo
+        type: syncedFolder
+    dependencies:
+      - package: EmoKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.emo.Emo
+        PRODUCT_NAME: Emo
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Emo
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        CODE_SIGN_ENTITLEMENTS: Emo/Emo.entitlements
+        CODE_SIGN_STYLE: Automatic
+        # Ad-hoc signing for local builds. Set DEVELOPMENT_TEAM when enabling iCloud (ticket 14).
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+schemes:
+  Emo:
+    build:
+      targets:
+        Emo: all
+    test:
+      targets:
+        - package: EmoKit/EmoKitTests
