@@ -32,7 +32,14 @@ public struct TaskLifecycle {
     public func complete(_ task: TaskItem, now: Date = Date(), learnTiming: Bool = true) throws -> TaskItem? {
         guard !task.isCompleted else { return nil }
         task.completedAt = now
-        if learnTiming { try TimeOfDayMemory(context: context, calendar: calendar).record(.completed, for: task, at: now) }
+        if learnTiming {
+            try TimeOfDayMemory(context: context, calendar: calendar).record(.completed, for: task, at: now)
+            // Estimate vs. the block time that ran before it was ticked (ticket 19).
+            let ran = try engine.events(forTask: task.id)
+                .filter { $0.kind == .taskBlock && $0.start < now }
+                .reduce(0) { $0 + min($1.end, now).timeIntervalSince($1.start) }
+            try DurationMemory(context: context).record(task, actualHours: ran / 3600, now: now)
+        }
         try context.save()
         let changed = try engine.clearFutureEvents(forTask: task.id, now: now, calendar: calendar)
 

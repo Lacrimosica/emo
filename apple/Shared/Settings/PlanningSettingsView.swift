@@ -10,10 +10,12 @@ struct PlanningSettingsView: View {
     @State private var errorMessage: String?
     @State private var learnedTimes: [TimeOfDayMemory.Learned] = []
     @State private var sizedCount = 0
+    @State private var learnedEstimates: [DurationMemory.Learned] = []
+    @State private var durationCount = 0
     @State private var confirmingForget: ForgetTarget?
 
     private enum ForgetTarget: Identifiable {
-        case times, sizing
+        case times, sizing, estimates
         var id: Self { self }
     }
 
@@ -71,19 +73,29 @@ struct PlanningSettingsView: View {
                         .accessibilityLabel("\(learned.name): usually \(windowText(learned.window))")
                     }
                 }
+                ForEach(learnedEstimates) { learned in
+                    LabeledContent {
+                        Text(factorText(learned.factor)).monospacedDigit()
+                    } label: {
+                        Label(learned.name.capitalized, systemImage: "timer")
+                    }
+                    .accessibilityLabel("\(learned.name): \(factorText(learned.factor))")
+                }
                 LabeledContent("Task sizes remembered", value: "\(sizedCount)")
                 Button("Forget Times…", role: .destructive) { confirmingForget = .times }
                     .disabled(learnedTimes.isEmpty)
                 Button("Forget Task Sizes…", role: .destructive) { confirmingForget = .sizing }
                     .disabled(sizedCount == 0)
+                Button("Forget Estimate Corrections…", role: .destructive) { confirmingForget = .estimates }
+                    .disabled(durationCount == 0)
             } header: {
                 Text("What Emo has learned")
             } footer: {
-                Text("Emo plans these kinds of tasks at these times when they're free, and sizes new reminders like similar tasks you've sized. Nothing leaves this device.")
+                Text("Emo plans these kinds of tasks at these times when they're free, reserves more or less time where your estimates tend to be off, and sizes new reminders like similar tasks you've sized. Task estimates themselves don't change. Nothing leaves this device.")
                     .foregroundStyle(.secondary)
             }
         }
-        .confirmationDialog(confirmingForget == .times ? "Forget time-of-day patterns?" : "Forget remembered task sizes?",
+        .confirmationDialog(forgetTitle,
                             isPresented: Binding(get: { confirmingForget != nil }, set: { if !$0 { confirmingForget = nil } }),
                             titleVisibility: .visible) {
             Button("Forget", role: .destructive) { forget() }
@@ -112,16 +124,33 @@ struct PlanningSettingsView: View {
     private func loadLearned() {
         learnedTimes = (try? TimeOfDayMemory(context: modelContext).learned()) ?? []
         sizedCount = (try? SchedulingMemory(context: modelContext).count()) ?? 0
+        learnedEstimates = (try? DurationMemory(context: modelContext).learned()) ?? []
+        durationCount = (try? DurationMemory(context: modelContext).count()) ?? 0
     }
 
     private func forget() {
         switch confirmingForget {
         case .times: try? TimeOfDayMemory(context: modelContext).reset()
         case .sizing: try? SchedulingMemory(context: modelContext).reset()
+        case .estimates: try? DurationMemory(context: modelContext).reset()
         case nil: break
         }
         confirmingForget = nil
         loadLearned()
+    }
+
+    private var forgetTitle: String {
+        switch confirmingForget {
+        case .times: "Forget time-of-day patterns?"
+        case .sizing: "Forget remembered task sizes?"
+        case .estimates: "Forget estimate corrections?"
+        case nil: ""
+        }
+    }
+
+    /// "Takes about 0.7× the estimate".
+    private func factorText(_ factor: Double) -> String {
+        "about \(factor.formatted(.number.precision(.fractionLength(0...2))))× the estimate"
     }
 
     private func windowText(_ window: PreferredWindow) -> String {

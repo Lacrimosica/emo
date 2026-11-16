@@ -54,6 +54,11 @@ public struct DayPlanning {
         let learned = Dictionary(uniqueKeysWithValues: try TimeOfDayMemory(context: context, calendar: calendar)
             .learned().map { ($0.group, $0.window) })
         func window(_ t: TaskItem) -> PreferredWindow? { learned[TimeOfDayMemory.group(for: t)] }
+        // Learned estimate corrections (ticket 19); the task's own estimate is untouched.
+        let factors = try DurationMemory(context: context).factors(now: now)
+        func reserved(_ t: TaskItem) -> TimeInterval {
+            DurationMemory.corrected(t.estimatedHours, by: factors[TimeOfDayMemory.group(for: t)])
+        }
         func plannable(_ t: TaskItem, on d: LocalDay) throws -> PlannableTask? {
             if t.isOngoing {
                 // A session is planned like a normal task of one session's length (ticket 31).
@@ -64,7 +69,7 @@ public struct DayPlanning {
                                      goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
             }
             return PlannableTask(id: t.id,
-                          remaining: max(t.estimatedHours * 3600 - (kept[t.id] ?? 0), 0),
+                          remaining: max(reserved(t) - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
                           transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
                           goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
