@@ -221,6 +221,8 @@ struct PhoneEventBlock<Actions: View>: View {
     let onResize: (TimelineEdge, TimeInterval) -> Void
     @ViewBuilder let actions: () -> Actions
 
+    @Environment(\.modelContext) private var modelContext
+
     private enum Press: Equatable {
         case idle
         case pressing
@@ -283,12 +285,34 @@ struct PhoneEventBlock<Actions: View>: View {
             .sensoryFeedback(.impact(weight: .medium), trigger: lifted) { _, new in new }
             .sensoryFeedback(.selection, trigger: moveOffset)
             .onChange(of: isInteracting) { _, interacting in onDraggingChanged(interacting) }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.title)\(event.kind == .taskBlock && event.isLocked ? ", pinned" : ""), \(event.start.formatted(date: .omitted, time: .shortened)) to \(event.end.formatted(date: .omitted, time: .shortened))")
-            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-            .accessibilityHint(editable ? "Opens the event. Long-press and drag to move." : "From Calendar; read-only")
-            .accessibilityAction(named: "Move 15 minutes later") { onMove(15 * 60) }
-            .accessibilityAction(named: "Move 15 minutes earlier") { onMove(-15 * 60) }
+            .modifier(BlockAccessibility(label: spokenLabel, isSelected: isSelected, editable: editable,
+                                         onEdit: onEdit, actions: { voiceOverActions }))
+    }
+
+    private var spokenLabel: String {
+        let pinned = event.kind == .taskBlock && event.isLocked ? ", pinned" : ""
+        let start = event.start.formatted(date: .omitted, time: .shortened)
+        let end = event.end.formatted(date: .omitted, time: .shortened)
+        return "\(event.title)\(pinned), \(start) to \(end)"
+    }
+
+    @ViewBuilder private var voiceOverActions: some View {
+        if event.kind == .taskBlock {
+            Button(TaskBlockActions.completeLabel(for: event, in: modelContext)) { perform(.completeTask) }
+            Button("Skip for Today") { perform(.skipToday) }
+            Button(event.isLocked ? "Unpin" : "Pin Here") { perform(.togglePin) }
+            Button("Remove Block") { perform(.removeBlock) }
+        } else {
+            Button("Delete") { try? CalendarEngine(context: modelContext).delete(event) }
+        }
+        Button("Move 15 minutes later") { onMove(15 * 60) }
+        Button("Move 15 minutes earlier") { onMove(-15 * 60) }
+        Button("Make 15 minutes longer") { onResize(.bottom, 15 * 60) }
+        Button("Make 15 minutes shorter") { onResize(.bottom, -15 * 60) }
+    }
+
+    private func perform(_ action: TaskBlockAction) {
+        withAnimation { try? TaskBlockActions.perform(action, on: event, in: modelContext) }
     }
 
     private func content(height: CGFloat) -> some View {
@@ -379,5 +403,25 @@ struct PhoneEventBlock<Actions: View>: View {
                     }
             )
             .accessibilityHidden(true)
+    }
+}
+
+/// VoiceOver for a timeline block. The block reads as one element, so the buttons drawn on it
+/// (quick actions, •••, resize handles) are offered as VoiceOver actions instead.
+private struct BlockAccessibility<Actions: View>: ViewModifier {
+    let label: String
+    let isSelected: Bool
+    let editable: Bool
+    let onEdit: () -> Void
+    @ViewBuilder let actions: () -> Actions
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityHint(editable ? "Opens the event. Swipe up or down for more actions." : "From Calendar; read-only")
+            .accessibilityAction { onEdit() }
+            .accessibilityActions { if editable { actions() } }
     }
 }

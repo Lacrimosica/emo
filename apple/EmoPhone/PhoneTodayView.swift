@@ -10,6 +10,7 @@ struct PhoneTodayView: View {
     let onCheckIn: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Query private var checkIns: [CheckIn]
     @Query private var dayEvents: [CalendarEvent]
     /// Set when "Plan Day" had to ask for a check-in first; planning resumes once it's saved.
@@ -136,7 +137,7 @@ struct PhoneTodayView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(day.start().formatted(.dateTime.weekday(.wide).day().month(.wide)))
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.8)
                 if day != today {
                     Text(day < today ? "Past day" : "Upcoming")

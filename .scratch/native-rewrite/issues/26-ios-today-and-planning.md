@@ -7,10 +7,10 @@
 **Status:** done
 
 - [x] Timeline renders the same `CalendarEngine` data and layout as the Mac
-- [ ] Check-in sheet and Plan Day (with summary message) work, including "check in first"
-- [ ] Touch editing: create (tap empty slot or + button), edit sheet, long-press drag to move with 15-min snapping, resize, delete
-- [ ] Task-block actions available via context menu
-- [ ] Previous/next day navigation (swipe or buttons)
+- [x] Check-in sheet and Plan Day (with summary message) work, including "check in first"
+- [x] Touch editing: create (tap empty slot or + button), edit sheet, long-press drag to move with 15-min snapping, resize, delete
+- [x] Task-block actions available via context menu
+- [x] Previous/next day navigation (swipe or buttons)
 
 ## Comments
 
@@ -27,3 +27,5 @@ Still to do: tap through the touch flows by hand (drag, resize, menu, tap to cre
 2026-11-13 (later): After testing in the Simulator: drag works, though it's a bit shaky at times (fine for now). Task blocks now show quick-action icons on the block itself: complete, skip, pin and remove (`Shared/Calendar/BlockQuickActions.swift`). They show on the Mac on hover or selection, and on iPhone whenever the block has room. Other editable events get a delete icon. Still open: the user couldn't remove an in-progress block. Remove Block deletes the whole block, but Complete and Skip keep the part before now as history. We still need to know which one they used, and whether the past part should disappear or be shown as done.
 
 2026-11-13: The user confirmed that blocks can now be removed, including one in progress (the current time falls inside it). Resolved.
+
+2026-11-16: Ticked the boxes the comments above already cover (built, Simulator-tested by the user; task-block actions are in the ••• menu instead of a context menu, as noted).

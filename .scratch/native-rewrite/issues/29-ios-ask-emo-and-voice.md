@@ -7,7 +7,7 @@
 **Status:** in-review
 
 - [x] Chat sheet with proposal review, reusing `TaskClarifier` and the providers
-- [ ] Dictation with microphone and speech permissions (on-device recognition where supported)
+- [x] Dictation with microphone and speech permissions (on-device recognition where supported)
 - [x] AI settings screen with provider choice, model picker and Test Connection
 - [x] Ollama note: a local Mac Ollama is only reachable from the phone over the LAN (host set to the Mac's address); document it in the screen's footer
 
@@ -18,3 +18,5 @@
 Ollama from the phone: `Config/EmoPhone-Info.plist` (merged into the generated plist) sets `NSAllowsLocalNetworking`, so plain http to LAN addresses works, plus a local-network usage description. The screen's footer explains: enter the Mac's Wi-Fi address (e.g. http://192.168.1.20:11434) and start Ollama with `OLLAMA_HOST=0.0.0.0`.
 
 Verified: both apps build (after `xcodegen`) and the EmoKit tests pass. Screenshots checked: the chat sheet on iPhone (Apple on-device provider available in the Simulator) and AI settings with Ollama and the footer. Not tested: an actual conversation and proposal, dictation (the Simulator microphone is unreliable; best on a device), and Ollama over the LAN.
+
+2026-11-16: Ticked: dictation is in the shared `TaskChatSheet` (`DictationController`), and the iPhone target has the mic and speech usage strings. Not tried on a real device yet (install blocked, see 25).

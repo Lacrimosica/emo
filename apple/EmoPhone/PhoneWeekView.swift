@@ -5,6 +5,7 @@ import SwiftUI
 /// The week on iPhone as a 7-day agenda: one section per day with its events in time order.
 /// Tapping a day or an event opens that day in Today.
 struct PhoneWeekView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let weekStart: LocalDay
     let today: LocalDay
     let onChangeWeek: (LocalDay) -> Void
@@ -79,6 +80,10 @@ struct PhoneWeekView: View {
 
     private var title: String {
         let first = days[0].start(in: calendar), last = days[6].start(in: calendar)
+        // At accessibility text sizes the full title gets cut off: "16–22 Nov" instead.
+        if dynamicTypeSize.isAccessibilitySize, calendar.isDate(first, equalTo: last, toGranularity: .month) {
+            return "\(first.formatted(.dateTime.day()))–\(last.formatted(.dateTime.day().month(.abbreviated)))"
+        }
         return "\(first.formatted(.dateTime.day().month(.abbreviated))) – \(last.formatted(.dateTime.day().month(.abbreviated)))"
     }
 
