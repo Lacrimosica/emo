@@ -43,7 +43,7 @@ final class ScriptedEnrichmentProvider: LLMProvider, @unchecked Sendable {
             ProposedNotesEdit(reminder: "2", partOf: "Job hunt"),   // already says so: no change
         ]))
         let step = try await ReminderEnrichment(provider: provider).next(said, candidates: [cv, update])
-        guard case .propose(let proposals) = step else { Issue.record("expected edits"); return }
+        guard case .propose(let proposals, _) = step else { Issue.record("expected edits"); return }
         #expect(proposals.count == 1)
         let p = try #require(proposals.first)
         #expect(p.taskID == cv.id)
@@ -85,6 +85,7 @@ final class ScriptedEnrichmentProvider: LLMProvider, @unchecked Sendable {
         let items = ((schema["properties"] as? [String: Any])?["edits"] as? [String: Any])?["items"] as? [String: Any]
         let required = Set(items?["required"] as? [String] ?? [])
         #expect(required == ["reminder", "partOf", "context", "when", "ongoing"])
+        #expect(Set(schema["required"] as? [String] ?? []) == ["question", "edits", "remember"])
     }
 
     @Test func ongoingEditsAlwaysCarryAnExplicitTarget() {

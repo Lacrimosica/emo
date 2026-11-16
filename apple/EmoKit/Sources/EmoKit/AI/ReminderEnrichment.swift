@@ -11,9 +11,13 @@ public struct EnrichmentReply: StructuredOutput, Equatable {
     @Guide(description: "Edits to make, one per reminder that needs a change. Empty when asking a question.")
     public var edits: [ProposedNotesEdit]
 
-    public init(question: String? = nil, edits: [ProposedNotesEdit] = []) {
+    @Guide(description: "A short general fact about the user's life worth remembering for future tasks (not about one reminder), or empty.")
+    public var remember: String?
+
+    public init(question: String? = nil, edits: [ProposedNotesEdit] = [], remember: String? = nil) {
         self.question = question
         self.edits = edits
+        self.remember = remember
     }
 
     public static let jsonSchema = """
@@ -23,6 +27,10 @@ public struct EnrichmentReply: StructuredOutput, Equatable {
             "question": {
               "anyOf": [{ "type": "string" }, { "type": "null" }],
               "description": "One short clarifying question, or null when proposing edits."
+            },
+            "remember": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "A short general fact about the user's life worth remembering for future tasks (not about one reminder), or null."
             },
             "edits": {
               "type": "array",
@@ -41,7 +49,7 @@ public struct EnrichmentReply: StructuredOutput, Equatable {
               }
             }
           },
-          "required": ["question", "edits"],
+          "required": ["question", "edits", "remember"],
           "additionalProperties": false
         }
         """
@@ -77,8 +85,9 @@ public struct ProposedNotesEdit: Codable, Sendable, Equatable {
 public struct ReminderEnrichment {
     public enum Step: Equatable {
         case ask(String)
-        /// Validated edits, at most one per reminder; empty when nothing needs changing.
-        case propose([Proposal])
+        /// Validated edits, at most one per reminder (empty when nothing needs changing), plus a
+        /// general fact the assistant suggests remembering (ticket 21), if any.
+        case propose([Proposal], remember: String?)
     }
 
     /// One reminder's proposed change, ready for review.
@@ -109,6 +118,8 @@ public struct ReminderEnrichment {
         - Values are one short line. "context" at most \(maxContextLength) characters, "part of" at most \(maxPartOfLength).
         - Use null to leave a key as it is, and "" only when the user asks to remove it.
         - If you can't tell which reminders the user means, or what to write, ask ONE short question instead.
+        - If the user tells you something general about their life that will help with future tasks \
+        (what an abbreviation means, when they usually do something), put it in "remember" as one short line.
         """
 
     private let provider: any LLMProvider
@@ -143,21 +154,24 @@ public struct ReminderEnrichment {
     }
 
     /// The instructions: the shared base prompt, the edit rules, and the numbered reminders.
-    public static func instructions(for candidates: [TaskItem]) -> String {
+    public static func instructions(for candidates: [TaskItem], memory: [String] = []) -> String {
         let list = candidates.enumerated().map { "[\($0.offset + 1)] \(EmoPrompt.render($0.element))" }.joined(separator: "\n")
-        return EmoPrompt.base + "\n\n" + rules + "\n\nReminders:\n" + list
+        return EmoPrompt.base + AIMemory.instructions(memory) + "\n\n" + rules + "\n\nReminders:\n" + list
     }
 
     /// The next step given the conversation so far (ending with a user message) and the reminders
     /// it may edit.
-    public func next(_ conversation: [ChatTurn], candidates: [TaskItem]) async throws -> Step {
-        let reply = try await provider.generate(EnrichmentReply.self, instructions: Self.instructions(for: candidates),
+    public func next(_ conversation: [ChatTurn], candidates: [TaskItem], memory: [String] = []) async throws -> Step {
+        let reply = try await provider.generate(EnrichmentReply.self, instructions: Self.instructions(for: candidates, memory: memory),
                                                 conversation: conversation)
         let proposals = Self.proposals(from: reply.edits, candidates: candidates)
-        if proposals.isEmpty, let question = TaskClarifier.singleQuestion(reply.question) {
+        let remember = reply.remember.flatMap(AIMemory.clean).flatMap { fact in
+            memory.contains { $0.caseInsensitiveCompare(fact) == .orderedSame } ? nil : fact
+        }
+        if proposals.isEmpty, remember == nil, let question = TaskClarifier.singleQuestion(reply.question) {
             return .ask(question)
         }
-        return .propose(proposals)
+        return .propose(proposals, remember: remember)
     }
 
     /// Maps the model's edits onto the candidates, validating every value; drops anything invalid,

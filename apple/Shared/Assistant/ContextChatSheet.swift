@@ -18,6 +18,9 @@ struct ContextChatSheet: View {
     @State private var isThinking = false
     @State private var proposals: [ReminderEnrichment.Proposal]?
     @State private var approved: Set<UUID> = []
+    /// A general fact Emo suggests remembering (ticket 21), and whether the user keeps it.
+    @State private var suggestedNote: String?
+    @State private var keepNote = true
     @State private var isWriting = false
     @State private var errorMessage: String?
     @State private var unavailableReason: String?
@@ -105,7 +108,7 @@ struct ContextChatSheet: View {
     private func review(_ proposals: [ReminderEnrichment.Proposal]) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                if proposals.isEmpty {
+                if proposals.isEmpty && suggestedNote == nil {
                     Text("Nothing to change: your reminders already say that, or I couldn't tell which ones you meant.")
                         .foregroundStyle(.secondary)
                 } else {
@@ -116,7 +119,11 @@ struct ContextChatSheet: View {
                         ))
                         if proposal.id != proposals.last?.id { Divider() }
                     }
-                    if !remindersSync.isEnabled {
+                    if let suggestedNote {
+                        if !proposals.isEmpty { Divider() }
+                        RememberRow(note: suggestedNote, isApproved: $keepNote)
+                    }
+                    if !proposals.isEmpty && !remindersSync.isEnabled {
                         Text("Reminders isn't connected on this device. Changes are saved in Emo and written to Reminders once it is.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -129,30 +136,42 @@ struct ContextChatSheet: View {
                         Spacer()
                         Button(writeLabel) { Task { await write(proposals) } }
                             .buttonStyle(.borderedProminent)
-                            .disabled(approved.isEmpty || isWriting)
+                            .disabled((approved.isEmpty && !savesNote) || isWriting)
                     }
                 }
             }
             .padding(4)
         } label: {
-            Label(proposals.isEmpty ? "No changes" : "Suggested changes", systemImage: "sparkles")
+            Label(proposals.isEmpty && suggestedNote == nil ? "No changes" : "Suggested changes", systemImage: "sparkles")
         }
     }
 
+    private var savesNote: Bool { suggestedNote != nil && keepNote }
+
     private var writeLabel: String {
-        approved.count == 1 ? "Update 1 Reminder" : "Update \(approved.count) Reminders"
+        switch approved.count {
+        case 0: "Remember"
+        case 1: "Update 1 Reminder"
+        default: "Update \(approved.count) Reminders"
+        }
     }
 
     private func write(_ proposals: [ReminderEnrichment.Proposal]) async {
         isWriting = true
         defer { isWriting = false }
+        if savesNote, let suggestedNote {
+            do { try AIMemory(context: modelContext).add(suggestedNote) } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
         let backlog = Backlog(context: modelContext)
         var count = 0
         for proposal in proposals where approved.contains(proposal.id) {
             guard let task = try? backlog.task(withID: proposal.taskID) else { continue }
             if await !remindersSync.writeNotes(proposal.changes, for: task).isEmpty { count += 1 }
         }
-        if let error = remindersSync.errorMessage, count == 0 {
+        if let error = remindersSync.errorMessage, count == 0, !approved.isEmpty {
             errorMessage = error
             return
         }
@@ -170,6 +189,7 @@ struct ContextChatSheet: View {
         conversation.append(ChatTurn(.user, input.trimmingCharacters(in: .whitespacesAndNewlines)))
         input = ""
         proposals = nil
+        suggestedNote = nil
         errorMessage = nil
         isThinking = true
         let snapshot = conversation
@@ -185,14 +205,18 @@ struct ContextChatSheet: View {
             errorMessage = "There are no reminders from Apple Reminders in your backlog yet. Turn on Reminders in Settings first."
             return
         }
+        let memory = (try? AIMemory(context: modelContext)
+            .relevant(to: (snapshot.map(\.text) + candidates.map(\.name)).joined(separator: " "))) ?? []
         Task {
             defer { isThinking = false }
             do {
-                switch try await ReminderEnrichment(provider: provider).next(snapshot, candidates: candidates) {
+                switch try await ReminderEnrichment(provider: provider).next(snapshot, candidates: candidates, memory: memory) {
                 case .ask(let question):
                     conversation.append(ChatTurn(.assistant, question))
-                case .propose(let found):
+                case .propose(let found, let remember):
                     approved = Set(found.map(\.id))
+                    suggestedNote = remember
+                    keepNote = true
                     proposals = found
                 }
             } catch {
@@ -206,6 +230,26 @@ struct ContextChatSheet: View {
             if proposals != nil { proxy.scrollTo("review", anchor: .bottom) }
             else if let last = conversation.last { proxy.scrollTo(last.id, anchor: .bottom) }
         }
+    }
+}
+
+/// A general fact Emo suggests remembering, with an approve switch.
+private struct RememberRow: View {
+    let note: String
+    @Binding var isApproved: Bool
+
+    var body: some View {
+        Toggle(isOn: $isApproved) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Remember for next time", systemImage: "brain").font(.headline)
+                Text(note).font(.callout)
+                Text("Editable in Settings › AI › Memory.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        #if os(macOS)
+        .toggleStyle(.checkbox)
+        #endif
+        .accessibilityHint("Save this as a memory note")
     }
 }
 

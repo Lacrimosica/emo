@@ -103,10 +103,11 @@ public struct TaskClarifier: Sendable {
     }
 
     /// The next step given the conversation so far (which must end with a user message).
-    public func next(_ conversation: [ChatTurn]) async throws -> Step {
+    /// `memory`: relevant memory notes (`AIMemory.relevant`), added to the instructions.
+    public func next(_ conversation: [ChatTurn], memory: [String] = []) async throws -> Step {
         let questionsAsked = conversation.filter { $0.role == .assistant }.count
         let mustPropose = questionsAsked >= Self.maxQuestions
-        var instructions = EmoPrompt.base + "\n\n" + Self.instructions
+        var instructions = EmoPrompt.base + AIMemory.instructions(memory) + "\n\n" + Self.instructions
         if mustPropose { instructions += "\n" + Self.mustProposeNow }
 
         let reply = try await provider.generate(ClarifierReply.self, instructions: instructions, conversation: conversation)

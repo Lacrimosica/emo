@@ -6,6 +6,7 @@ import SwiftUI
 /// proposes a task that the user reviews (and can adjust) before it's added.
 struct TaskChatSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var conversation: [ChatTurn] = []
     @State private var input = ""
@@ -139,10 +140,11 @@ struct TaskChatSheet: View {
         errorMessage = nil
         isThinking = true
         let snapshot = conversation
+        let memory = (try? AIMemory(context: modelContext).relevant(to: snapshot.map(\.text).joined(separator: " "))) ?? []
         Task {
             defer { isThinking = false }
             do {
-                switch try await TaskClarifier(provider: provider).next(snapshot) {
+                switch try await TaskClarifier(provider: provider).next(snapshot, memory: memory) {
                 case .ask(let question): conversation.append(ChatTurn(.assistant, question))
                 case .propose(let draft): proposal = draft
                 }

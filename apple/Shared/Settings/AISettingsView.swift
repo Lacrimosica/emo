@@ -92,6 +92,8 @@ struct AISettingsView: View {
                 case nil: EmptyView()
                 }
             }
+
+            MemorySettingsSection()
         }
         .formStyle(.grouped)
         .onAppear {

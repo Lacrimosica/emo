@@ -34,7 +34,7 @@ struct LiveProviderTests {
             ChatTurn(.user, "Sending the CV and the portfolio are part of the job hunt, for product design roles in Milan. The CV should go out this week."),
         ], candidates: tasks)
         print("Apple on-device enrichment:", step)
-        if case .propose(let proposals) = step {
+        if case .propose(let proposals, _) = step {
             #expect(!proposals.contains { $0.taskID == tasks[2].id }, "dog food shouldn't be touched")
         }
     }
