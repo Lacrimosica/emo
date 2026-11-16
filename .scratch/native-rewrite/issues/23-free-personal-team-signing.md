@@ -4,10 +4,17 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-human
+**Status:** in-review (pending manual check, see Comments)
 
 Needs the user's Personal Team ID (Xcode › Settings › Accounts, after signing in with an Apple ID). Free-provisioning limits to keep in mind: iPhone installs expire after 7 days (re-run from Xcode), at most 3 such apps per device, and no iCloud/CloudKit capability.
 
-- [ ] `DEVELOPMENT_TEAM` set in project.yml for every target; ad-hoc `CODE_SIGN_IDENTITY "-"` removed
+- [x] `DEVELOPMENT_TEAM` set in project.yml for every target; ad-hoc `CODE_SIGN_IDENTITY "-"` removed
 - [ ] Rebuilding the Mac app no longer re-prompts for Calendar/Reminders access
-- [ ] CLAUDE.md documents the signing setup and the free-provisioning limits
+- [x] CLAUDE.md documents the signing setup and the free-provisioning limits
+
+## Comments
+
+2026-11-16: Team 3R99LV35Q6 set at project level; Xcode created the Apple Development certificate on the first
+`-allowProvisioningUpdates` build. The Mac app's designated requirement is now the bundle ID + certificate (was a
+per-build cdhash). Left to check by hand: grant access once, rebuild, relaunch, no prompt. iPhone device install
+not tried yet.

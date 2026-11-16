@@ -12,6 +12,9 @@ settings:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Free Apple ID "Personal Team" (ticket 23): a stable signature, so macOS keeps permissions
+    # across rebuilds. Free provisioning has no iCloud capability (ticket 14 needs a paid team).
+    DEVELOPMENT_TEAM: 3R99LV35Q6
 packages:
   EmoKit:
     path: EmoKit
@@ -40,8 +43,6 @@ targets:
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: Emo brings your reminders into its backlog so it can schedule them.
         CODE_SIGN_ENTITLEMENTS: Emo/Emo.entitlements
         CODE_SIGN_STYLE: Automatic
-        # Ad-hoc signing for local builds. Set DEVELOPMENT_TEAM when enabling iCloud (ticket 14).
-        CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: YES
@@ -71,7 +72,7 @@ targets:
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: Emo brings your reminders into its backlog so it can schedule them.
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
-        # No team yet: builds run in the Simulator. Installing on a device needs a (free) Personal Team (ticket 23).
+        # Device installs with the free team expire after 7 days: re-run from Xcode.
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: YES
 schemes:
