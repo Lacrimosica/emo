@@ -129,3 +129,8 @@ struct OngoingProgressLabel: View {
             .accessibilityLabel("Ongoing: \(doneThisWeek) of \(task.sessionsPerWeek) sessions done this week, \(task.sessionHours.hoursLabel) each")
     }
 }
+
+extension TaskItem {
+    /// Done day by day ("Done Today") rather than once: ongoing tasks and checklist items.
+    var isDaily: Bool { isOngoing || isRoutineItem }
+}

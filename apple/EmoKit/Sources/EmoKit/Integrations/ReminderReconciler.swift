@@ -20,7 +20,8 @@ public struct ReminderReconciler {
 
     /// Sizing for imported reminders until the user reviews them.
     public static let defaultEstimateHours = 0.5
-    public static let routineEstimateHours = 0.25
+    /// One checklist item; the checklist block is the sum of its items (ticket 34).
+    public static let routineEstimateHours = 5.0 / 60
 
     private let context: ModelContext
     private let calendar: Calendar
@@ -48,7 +49,10 @@ public struct ReminderReconciler {
             let task = try link?.taskID.flatMap { try backlog.task(withID: $0) }
 
             if let link, let task {
-                if reminder.isCompleted {
+                if reminder.isCompleted, task.isRoutineItem {
+                    // A routine item is daily: ticked means done that day, not done for good.
+                    try checklists.markDone(task, on: LocalDay(reminder.completedAt ?? now, calendar: calendar), now: now)
+                } else if reminder.isCompleted {
                     if !task.isCompleted {
                         try lifecycle.complete(task, now: now, learnTiming: false)
                         result.completed += 1
@@ -93,7 +97,7 @@ public struct ReminderReconciler {
                 Self.assign(reminder.list, to: task)
                 task.notes = Self.notes(reminder.notes)
                 task.applyNotes(seenOn: LocalDay(now, calendar: calendar))
-                if task.isOngoing { task.needsReview = false }   // sized from the notes
+                if task.isOngoing || task.isRoutineItem { task.needsReview = false }   // sized from the notes / a checklist item
                 let newLink = ExternalLink(provider: snapshot.provider, externalID: reminder.externalID,
                                            sourceID: reminder.sourceID, contentHash: reminder.contentHash, now: now)
                 newLink.taskID = task.id
@@ -107,8 +111,11 @@ public struct ReminderReconciler {
             context.delete(link)
         }
         try context.save()
+        try checklists.sync(now: now)
         return result
     }
+
+    private var checklists: RoutineChecklist { RoutineChecklist(context: context, calendar: calendar) }
 
     /// Removes what an integration brought in, except from `keeping` sources: open imported tasks
     /// are deleted (they still live in Reminders); completed ones stay as history.
@@ -120,6 +127,7 @@ public struct ReminderReconciler {
             context.delete(link)
         }
         try context.save()
+        try checklists.sync(now: now)
         return result
     }
 

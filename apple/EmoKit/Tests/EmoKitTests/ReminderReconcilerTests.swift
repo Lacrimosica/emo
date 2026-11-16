@@ -128,13 +128,13 @@ import Testing
         try DayPlanning(context: context, calendar: calendar).plan(day, now: at(7))
         let planned = Set(try CalendarEngine(context: context).events(on: day, calendar: calendar).compactMap(\.taskID))
         let names = Set(try open().filter { planned.contains($0.id) }.map(\.name))
-        #expect(names == ["Pay rent", "Stretch"])
-        #expect(try open().count == 8)   // the rest are still remembered
+        #expect(names == ["Pay rent", RoutineChecklist.defaultName])   // routine items go in via their checklist (34)
+        #expect(try open().count == 9)   // the rest are still remembered, plus the checklist
     }
 
     @Test func routineItemsArriveSmallAndLight() throws {
         try reconciler.apply(snap([r("1", "Stretch", named: "CHECKLIST DAILY")]), now: at(8))
-        let task = try #require(try open().first)
+        let task = try #require(try open().first(where: \.isRoutineItem))
         #expect(task.estimatedHours == ReminderReconciler.routineEstimateHours && task.energyCost == .low)
     }
 

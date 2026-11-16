@@ -7,18 +7,21 @@ public struct ExternalReminder: Equatable, Sendable {
     public var title: String
     public var due: Date?
     public var isCompleted: Bool
+    /// When it was ticked, for completed reminders.
+    public var completedAt: Date?
     /// What the reminder's list is for, read from the list's name.
     public var list: ListAssignment
     /// The reminder's notes, raw (see `ReminderNotes` for the keyed lines Emo reads).
     public var notes: String
 
     public init(externalID: String, sourceID: String, title: String, due: Date? = nil, isCompleted: Bool = false,
-                list: ListAssignment = ListAssignment(role: .nextAction), notes: String = "") {
+                completedAt: Date? = nil, list: ListAssignment = ListAssignment(role: .nextAction), notes: String = "") {
         self.externalID = externalID
         self.sourceID = sourceID
         self.title = title
         self.due = due
         self.isCompleted = isCompleted
+        self.completedAt = completedAt
         self.list = list
         self.notes = notes
     }

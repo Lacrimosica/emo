@@ -31,6 +31,10 @@ public struct TaskLifecycle {
     /// arrive from a sync, whose time is only when Emo noticed).
     public func complete(_ task: TaskItem, now: Date = Date(), learnTiming: Bool = true) throws -> TaskItem? {
         guard !task.isCompleted else { return nil }
+        if task.isRoutineItem {   // daily: done for today, not for good (ticket 34)
+            try RoutineChecklist(context: context, calendar: calendar).markDone(task, on: LocalDay(now, calendar: calendar), now: now)
+            return nil
+        }
         task.completedAt = now
         if learnTiming {
             try TimeOfDayMemory(context: context, calendar: calendar).record(.completed, for: task, at: now)

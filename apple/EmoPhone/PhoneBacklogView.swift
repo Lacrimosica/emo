@@ -30,28 +30,36 @@ struct PhoneBacklogView: View {
                 }
             } else {
                 List(tasks) { task in
-                    Button { editing = task } label: { PhoneTaskRow(task: task, doneThisWeek: doneThisWeek(task)) }
+                    Button { editing = task } label: { PhoneTaskRow(task: task, doneThisWeek: doneThisWeek(task), doneToday: doneToday(task)) }
                         .foregroundStyle(.primary)
                         .swipeActions(edge: .leading) {
-                            Button(task.isOngoing ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                            if !doneToday(task) {
+                                Button(task.isDaily ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                            }
                             if task.looksVague {
                                 Button("Clarify", systemImage: "sparkles") { clarifying = task }.tint(.indigo)
                             }
                         }
                         .contextMenu {
                             Button("Edit", systemImage: "pencil") { editing = task }
-                            if task.listRole != nil {
+                            if task.listRole != nil, !task.isChecklist {
                                 Button("Clarify with Emo", systemImage: "sparkles") { clarifying = task }
                             }
-                            Button(task.isOngoing ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
-                            if task.isOngoing {
+                            Button(task.isDaily ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
+                                .disabled(doneToday(task))
+                            // The checklist follows the routine list: it can't be stopped or deleted.
+                            if task.isOngoing, !task.isChecklist {
                                 Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
                             }
-                            Divider()
-                            Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+                            if !task.isChecklist {
+                                Divider()
+                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+                            }
                         }
                         .swipeActions(edge: .trailing) {
-                            Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+                            if !task.isChecklist {
+                                Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
+                            }
                         }
                 }
             }
@@ -117,6 +125,12 @@ struct PhoneBacklogView: View {
         return sessions.filter { $0.taskID == task.id && keys.contains($0.dayKey) }.count
     }
 
+    private func doneToday(_ task: TaskItem) -> Bool {
+        guard task.isDaily else { return false }
+        let key = LocalDay.today().key
+        return sessions.contains { $0.taskID == task.id && $0.dayKey == key }
+    }
+
     private func delete(_ task: TaskItem) {
         do { try TaskLifecycle(context: modelContext).delete(task) } catch { errorMessage = error.localizedDescription }
     }
@@ -125,9 +139,15 @@ struct PhoneBacklogView: View {
 private struct PhoneTaskRow: View {
     let task: TaskItem
     var doneThisWeek = 0
+    var doneToday = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
+            if task.isRoutineItem {
+                Image(systemName: doneToday ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(doneToday ? Color.green : .secondary)
+                    .accessibilityLabel(doneToday ? "Done for today" : "Not done today")
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.name)
                 if let partOf = task.partOf {

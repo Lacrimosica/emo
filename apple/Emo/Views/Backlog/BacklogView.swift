@@ -95,7 +95,7 @@ struct BacklogView: View {
     }
 
     private func row(for task: TaskItem) -> some View {
-        TaskRow(task: task, today: .today(), doneThisWeek: doneThisWeek(task)) { complete(task) }
+        TaskRow(task: task, today: .today(), doneThisWeek: doneThisWeek(task), doneToday: doneToday(task)) { complete(task) }
             .contentShape(Rectangle())
             .onTapGesture(count: 2) { editor = .edit(task) }
             .contextMenu { menu(for: task) }
@@ -103,7 +103,7 @@ struct BacklogView: View {
                 Button("Delete", systemImage: "trash", role: .destructive) { deleting = task }
             }
             .swipeActions(edge: .leading) {
-                Button(task.isOngoing ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
+                Button(task.isDaily ? "Done Today" : "Complete", systemImage: "checkmark") { complete(task) }.tint(.green)
             }
     }
 
@@ -123,23 +123,32 @@ struct BacklogView: View {
                          ? "Clarify these in Reminders: move each to an NA list to have it scheduled." : nil,
                          tasks: tasks)
         }
-        let active = tasks.filter(\.isSchedulable)
-        return (active.isEmpty ? [] : [RoleGroup(title: parked.isEmpty ? nil : "To do", systemImage: "calendar", tasks: active)]) + parked
+        let active = tasks.filter { $0.isSchedulable && !$0.isRoutineItem }
+        let routine = tasks.filter(\.isRoutineItem)
+        let checklist = routine.isEmpty ? [] : [RoleGroup(
+            title: "Checklist items", systemImage: "checklist",
+            note: "Planned together as one daily checklist block. Ticking an item marks it done for today.", tasks: routine)]
+        let untitled = parked.isEmpty && checklist.isEmpty
+        return (active.isEmpty ? [] : [RoleGroup(title: untitled ? nil : "To do", systemImage: "calendar", tasks: active)]) + checklist + parked
     }
 
     @ViewBuilder
     private func menu(for task: TaskItem) -> some View {
         Button("Edit…", systemImage: "pencil") { editor = .edit(task) }
         Button("Schedule at…", systemImage: "pin") { pinning = task }
-        Button(task.isOngoing ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
-        if task.isOngoing {
+        Button(task.isDaily ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
+            .disabled(doneToday(task))
+        // The checklist is Emo's own: it follows the routine list, so it can't be stopped, clarified or deleted.
+        if task.isOngoing, !task.isChecklist {
             Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
         }
-        if task.listRole != nil {
+        if task.listRole != nil, !task.isChecklist {
             Button("Clarify with Emo…", systemImage: "sparkles") { clarifying = task }
         }
-        Divider()
-        Button("Delete…", systemImage: "trash", role: .destructive) { deleting = task }
+        if !task.isChecklist {
+            Divider()
+            Button("Delete…", systemImage: "trash", role: .destructive) { deleting = task }
+        }
     }
 
     private var lifecycle: TaskLifecycle { TaskLifecycle(context: modelContext) }
@@ -162,6 +171,13 @@ struct BacklogView: View {
         return sessions.filter { $0.taskID == task.id && keys.contains($0.dayKey) }.count
     }
 
+    /// A routine item ticked today, or an ongoing task whose session today is logged.
+    private func doneToday(_ task: TaskItem) -> Bool {
+        guard task.isDaily else { return false }
+        let key = LocalDay.today().key
+        return sessions.contains { $0.taskID == task.id && $0.dayKey == key }
+    }
+
     private func delete(_ task: TaskItem) {
         do { try lifecycle.delete(task) } catch { errorMessage = error.localizedDescription }
     }
@@ -171,18 +187,22 @@ private struct TaskRow: View {
     let task: TaskItem
     let today: LocalDay
     var doneThisWeek = 0
+    var doneToday = false
     let onComplete: () -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Button(action: onComplete) {
-                Image(systemName: "circle")
+                Image(systemName: doneToday ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(doneToday ? Color.green : .secondary)
             }
             .buttonStyle(.plain)
-            .help(task.isOngoing ? "Log today's session" : "Mark as done")
-            .accessibilityLabel(task.isOngoing ? "Log a session of \(task.name)" : "Complete \(task.name)")
+            .disabled(doneToday)
+            .help(doneToday ? "Done for today" : task.isDaily ? "Done for today" : "Mark as done")
+            .accessibilityLabel(doneToday ? "\(task.name), done for today"
+                                : task.isRoutineItem ? "Tick \(task.name) for today"
+                                : task.isOngoing ? "Log a session of \(task.name)" : "Complete \(task.name)")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.name)

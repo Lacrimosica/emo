@@ -51,6 +51,9 @@ public final class TaskItem {
     /// Keyed-line edits waiting to be written to the integration item's notes (JSON of
     /// `[key: value or null]`, see `ReminderNotesWriteBack`). Already applied to `notes`.
     public var pendingNotesEditsJSON: String?
+    /// The Emo-managed "Daily checklist" for a routine list (ticket 34): an ongoing daily task
+    /// standing in for that list's items, which are never planned on their own.
+    public var isChecklist: Bool = false
 
     public init(
         name: String,
@@ -96,6 +99,10 @@ public final class TaskItem {
 
     /// Whether planning may ever place this task (Someday, Waiting, Inbox… items may not).
     public var isSchedulable: Bool { listRole?.isSchedulable ?? true }
+
+    /// An item of a routine list (ticket 34): done day by day, and planned as part of its
+    /// checklist rather than on its own.
+    public var isRoutineItem: Bool { listRole == .routine && !isChecklist }
 
     public var isCompleted: Bool { completedAt != nil }
 
@@ -161,13 +168,14 @@ public final class TaskItem {
     /// An imported task Emo can't make much of yet: no `context:`, and either still in an inbox
     /// list or titled in two words or fewer. Offered "Clarify with Emo" in the backlog.
     public var looksVague: Bool {
-        guard let role = listRole, notesContext == nil, !isCompleted else { return false }
+        // Checklist items are short by nature ("Meds"), and the checklist is Emo's own.
+        guard let role = listRole, role != .routine, notesContext == nil, !isCompleted else { return false }
         return role == .inbox || name.split(whereSeparator: \.isWhitespace).count <= 2
     }
 
     /// Whether planning may place this task on `day`.
     public func isPlannable(on day: LocalDay) -> Bool {
-        guard !isCompleted, isSchedulable, skippedDayKey != day.key else { return false }
+        guard !isCompleted, isSchedulable, !isRoutineItem, skippedDayKey != day.key else { return false }
         if let from = availableFromDayKey, day.key < from { return false }
         return true
     }
