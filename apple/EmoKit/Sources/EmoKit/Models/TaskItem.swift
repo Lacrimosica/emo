@@ -51,6 +51,9 @@ public final class TaskItem {
     /// Keyed-line edits waiting to be written to the integration item's notes (JSON of
     /// `[key: value or null]`, see `ReminderNotesWriteBack`). Already applied to `notes`.
     public var pendingNotesEditsJSON: String?
+    /// A completion (true) or reopening (false) done in Emo, waiting to be written to the
+    /// integration item (see `ReminderCompletionWriteBack`). Nil: nothing to write.
+    public var pendingReminderCompletion: Bool?
     /// The Emo-managed "Daily checklist" for a routine list (ticket 34): an ongoing daily task
     /// standing in for that list's items, which are never planned on their own.
     public var isChecklist: Bool = false

@@ -28,9 +28,11 @@ public struct TaskLifecycle {
     /// Returns the next occurrence, if one was created.
     @discardableResult
     /// `learnTiming`: whether `now` is when the user actually did it (false for completions that
-    /// arrive from a sync, whose time is only when Emo noticed).
+    /// arrive from a sync, whose time is only when Emo noticed). A completion the user made is
+    /// also queued for writing back to the linked reminder (ticket 35).
     public func complete(_ task: TaskItem, now: Date = Date(), learnTiming: Bool = true) throws -> TaskItem? {
         guard !task.isCompleted else { return nil }
+        if learnTiming { task.pendingReminderCompletion = true }
         if task.isRoutineItem {   // daily: done for today, not for good (ticket 34)
             try RoutineChecklist(context: context, calendar: calendar).markDone(task, on: LocalDay(now, calendar: calendar), now: now)
             return nil
@@ -55,6 +57,7 @@ public struct TaskLifecycle {
     /// Undoes a completion (e.g. ticked by mistake). Doesn't remove a next occurrence already created.
     public func reopen(_ task: TaskItem) throws {
         task.completedAt = nil
+        task.pendingReminderCompletion = false
         try context.save()
     }
 

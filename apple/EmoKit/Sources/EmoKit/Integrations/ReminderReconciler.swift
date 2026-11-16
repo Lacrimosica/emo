@@ -42,6 +42,8 @@ public struct ReminderReconciler {
             if byExternalID[link.externalID] == nil { byExternalID[link.externalID] = link } else { context.delete(link) }
         }
 
+        try relinkNextOccurrences(snapshot, &byExternalID, now: now)
+
         var seen: Set<String> = []
         for reminder in snapshot.reminders where snapshot.sources.contains(reminder.sourceID) {
             seen.insert(reminder.externalID)
@@ -53,7 +55,8 @@ public struct ReminderReconciler {
                     // A routine item is daily: ticked means done that day, not done for good.
                     try checklists.markDone(task, on: LocalDay(reminder.completedAt ?? now, calendar: calendar), now: now)
                 } else if reminder.isCompleted {
-                    if !task.isCompleted {
+                    // Reopened in Emo and not written back yet: Emo's change wins.
+                    if !task.isCompleted, task.pendingReminderCompletion != false {
                         try lifecycle.complete(task, now: now, learnTiming: false)
                         result.completed += 1
                     }
@@ -116,6 +119,32 @@ public struct ReminderReconciler {
     }
 
     private var checklists: RoutineChecklist { RoutineChecklist(context: context, calendar: calendar) }
+
+    /// A repeating reminder ticked off can come back as a new reminder for its next date (the ticked
+    /// one stays behind, completed). For routine items that's the same checklist item: its link moves
+    /// to the new reminder and the tick counts as done that day, instead of a duplicate item.
+    private func relinkNextOccurrences(_ snapshot: ReminderSnapshot, _ byExternalID: inout [String: ExternalLink],
+                                       now: Date) throws {
+        let reminders = snapshot.reminders.filter { snapshot.sources.contains($0.sourceID) }
+        let fresh = reminders.filter { !$0.isCompleted && $0.list.role == .routine && byExternalID[$0.externalID] == nil }
+        guard !fresh.isEmpty else { return }
+        let openIDs = Set(reminders.filter { !$0.isCompleted }.map(\.externalID))
+        var ticked = reminders.filter { $0.isCompleted && !openIDs.contains($0.externalID) }
+        for reminder in fresh {
+            let name = Self.title(reminder.title)
+            guard let index = try ticked.firstIndex(where: { old in
+                guard old.sourceID == reminder.sourceID, let link = byExternalID[old.externalID],
+                      let task = try link.taskID.flatMap({ try backlog.task(withID: $0) }) else { return false }
+                return task.isRoutineItem && task.name == name
+            }) else { continue }
+            let old = ticked.remove(at: index)
+            guard let link = byExternalID.removeValue(forKey: old.externalID),
+                  let task = try link.taskID.flatMap({ try backlog.task(withID: $0) }) else { continue }
+            try checklists.markDone(task, on: LocalDay(old.completedAt ?? now, calendar: calendar), now: now)
+            link.externalID = reminder.externalID
+            byExternalID[reminder.externalID] = link
+        }
+    }
 
     /// Removes what an integration brought in, except from `keeping` sources: open imported tasks
     /// are deleted (they still live in Reminders); completed ones stay as history.

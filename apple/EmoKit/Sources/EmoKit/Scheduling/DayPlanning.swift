@@ -95,6 +95,22 @@ public struct DayPlanning {
                        unplacedTaskCount: second.overflow.count, unmetTodayGoals: unmet)
     }
 
+    /// Re-plans after outside changes (a Reminders sync, ticket 35), but only where the user has
+    /// planned already: today if it has Emo task blocks (past ones count), else tomorrow if it
+    /// does. A day nobody has planned waits for Plan Day. Returns the day re-planned, if any.
+    @discardableResult
+    public func refreshPlannedDays(now: Date = Date()) throws -> LocalDay? {
+        let today = LocalDay(now, calendar: calendar)
+        for day in [today, today.adding(days: 1, calendar: calendar)] {
+            let planned = try engine.events(on: day, calendar: calendar).contains { $0.isPlannedBlock && $0.origin == .local }
+            if planned {
+                try plan(day, now: now)
+                return day
+            }
+        }
+        return nil
+    }
+
     private func from(_ day: LocalDay, _ now: Date) -> Date {
         max(now, day.start(in: calendar))
     }

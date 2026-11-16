@@ -30,6 +30,7 @@ final class RemindersSyncService {
     private let context: ModelContext
     private let defaults: UserDefaults
     private var debounce: Task<Void, Never>?
+    private var writeDebounce: Task<Void, Never>?
     /// `EKEventStore.authorizationStatus` can keep reporting the pre-grant status until the app
     /// relaunches (seen with Reminders), so a grant from our own request is remembered here.
     private var grantedThisSession = false
@@ -41,6 +42,10 @@ final class RemindersSyncService {
         selectedLists = Set(defaults.stringArray(forKey: Key.lists) ?? [])
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: source.store, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.scheduleSync() }
+        }
+        // A task ticked anywhere in Emo (backlog, calendar block, sync) is saved; write it back soon.
+        NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: context, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scheduleWriteBack() }
         }
         if isEnabled { Task { await ensureAccess() } }
     }
@@ -107,10 +112,40 @@ final class RemindersSyncService {
         guard isEnabled, hasAccess else { return }
         let selected = selectedLists
         Task {
-            // Write Emo's pending notes edits first, so the snapshot already contains them.
+            // Write Emo's pending edits first, so the snapshot already contains them.
             await flushNotesEdits()
+            await flushCompletions()
             let snapshot = await source.snapshot(selected: selected)
             run { try ReminderReconciler(context: context).apply(snapshot) }
+            // New, edited or removed reminders reach a day the user has already planned (ticket 35).
+            if lastResult?.changed == true {
+                do { try DayPlanning(context: context).refreshPlannedDays() } catch {
+                    errorMessage = "Couldn't re-plan after syncing Reminders: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    // MARK: Completion write-back (ticket 35)
+
+    private func scheduleWriteBack() {
+        guard isEnabled, hasAccess, writeDebounce == nil else { return }
+        let pending = (try? ReminderCompletionWriteBack(context: context).pendingTasks().isEmpty == false) ?? false
+        guard pending else { return }
+        writeDebounce = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            await flushCompletions()
+            writeDebounce = nil
+        }
+    }
+
+    private func flushCompletions() async {
+        guard isEnabled, hasAccess else { return }
+        do {
+            let result = try await ReminderCompletionWriteBack(context: context).flush(using: AppleRemindersWriter(store: source.store))
+            if let error = result.lastError { errorMessage = "Couldn't tick a reminder in Reminders (will retry): \(error)" }
+        } catch {
+            errorMessage = "Couldn't tick reminders in Reminders: \(error.localizedDescription)"
         }
     }
 

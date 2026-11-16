@@ -1,10 +1,10 @@
 import EventKit
 import Foundation
 
-/// Writes keyed lines into reminders' notes in Reminders.app (ticket 32). Nothing else about a
-/// reminder is ever changed.
+/// Writes to Reminders.app: keyed lines in reminders' notes (ticket 32) and completion (ticket 35).
+/// Nothing else about a reminder is ever changed.
 @MainActor
-public struct AppleRemindersWriter: ReminderNotesWriting {
+public struct AppleRemindersWriter: ReminderNotesWriting, ReminderCompletionWriting {
     public let store: EKEventStore
     private let calendar: Calendar
 
@@ -30,6 +30,15 @@ public struct AppleRemindersWriter: ReminderNotesWriting {
             list: ListAssignment.infer(fromTitle: reminder.calendar.title),
             notes: reminder.notes ?? ""
         )
+    }
+
+    public func setCompleted(externalID: String, _ completed: Bool, onlyIfRepeating: Bool) async throws -> Bool {
+        guard let reminder = find(externalID) else { return false }
+        if onlyIfRepeating, !reminder.hasRecurrenceRules { return false }
+        guard reminder.isCompleted != completed else { return true }
+        reminder.isCompleted = completed
+        try store.save(reminder, commit: true)
+        return true
     }
 
     /// Links store the external identifier when there is one, else the local identifier.

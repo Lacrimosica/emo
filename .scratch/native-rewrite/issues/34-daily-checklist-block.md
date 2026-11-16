@@ -19,7 +19,7 @@ Emo treats every item as daily itself.
   `TaskSession` for that item and day; the item stays open. When every item of a checklist is done for a
   day, the checklist's session for that day is logged and its block cleared.
 - A routine reminder that stays completed in Reminders drops out of Emo after the 30-day lookback, as now.
-- Emo doesn't tick the reminder in Reminders (no completion write-back yet).
+- Completion write-back: see 35 (only repeating routine reminders are ticked).
 - Reminders tags (`#tag`) aren't readable through EventKit; roles come from list names only.
 
 - [x] Checklist task maintained from routine items
@@ -36,8 +36,7 @@ Emo treats every item as daily itself.
   (new `ExternalReminder.completedAt`).
 - Backlog (Mac): a "Checklist items" section with done-today ticks; iPhone rows show the tick. The checklist task hides
   Stop / Clarify / Delete (it follows the list).
-- A sync doesn't re-plan: a new or resized checklist lands on the calendar at the next Plan Day (same as new reminders).
-- Not done: un-ticking an item for today; listing the items inside the checklist block's sheet; writing completion back
-  to Reminders.
+- A sync re-plans days already planned (35).
+- Not done: un-ticking an item for today; listing the items inside the checklist block's sheet.
 - Manual check: with CHECKLIST DAILY selected in Settings › Integrations, Plan Day shows one "Daily checklist" block;
   ticking every item in the backlog clears it for today.
