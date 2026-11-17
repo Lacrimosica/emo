@@ -66,11 +66,13 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        # iPad: every orientation, which also lets Emo join Split View and Stage Manager.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Emo listens while you dictate a task.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Emo turns your dictated task into text, on this iPhone when possible.
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: Emo shows your calendar events and plans your tasks around them.
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: Emo brings your reminders into its backlog so it can schedule them.
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"   # iPhone and iPad
         CODE_SIGN_STYLE: Automatic
         # Device installs with the free team expire after 7 days: re-run from Xcode.
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
