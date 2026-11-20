@@ -11,6 +11,8 @@ struct WeekView: View {
 
     @Query private var events: [CalendarEvent]
     @Query private var checkIns: [CheckIn]
+    @Environment(\.modelContext) private var modelContext
+    @State private var planMessage: String?
 
     static let hourHeight: CGFloat = 36
     static let labelWidth: CGFloat = 44
@@ -44,7 +46,16 @@ struct WeekView: View {
                         .accessibilityHint("Opens this day")
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
+            if let planMessage {
+                Label(planMessage, systemImage: "wand.and.stars")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
+            }
             Divider()
 
             ScrollViewReader { proxy in
@@ -80,6 +91,21 @@ struct WeekView: View {
                 Button("Next Week", systemImage: "chevron.right") { onChangeWeek(weekStart.adding(days: 7)) }
                     .keyboardShortcut("]", modifiers: .command)
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Plan Week", systemImage: "wand.and.stars") {
+                    let message = DayScreen.planWeek(starting: weekStart, today: today, context: modelContext)
+                    withAnimation { planMessage = message }
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(weekStart.adding(days: 6) < today)
+                .help("Fill the rest of this week's free time with backlog tasks (⌘R)")
+            }
+        }
+        .onChange(of: weekStart) { planMessage = nil }
+        .task(id: planMessage) {
+            guard planMessage != nil else { return }
+            try? await Task.sleep(for: .seconds(10))
+            withAnimation { planMessage = nil }
         }
     }
 
@@ -101,35 +127,34 @@ private struct DayHeader: View {
 
     var body: some View {
         let date = day.start()
-        VStack(spacing: 2) {
-            HStack(spacing: 4) {
-                Text(date.formatted(.dateTime.weekday(.abbreviated)))
-                    .foregroundStyle(isToday ? Color.accentColor : .secondary)
-                Text(date.formatted(.dateTime.day()))
-                    .fontWeight(isToday ? .bold : .medium)
-                    .foregroundStyle(isToday ? Color.white : Color.primary)
-                    .padding(.horizontal, isToday ? 5 : 0)
-                    .background(isToday ? Color.accentColor : .clear, in: Capsule())
-                if let energy {
-                    Label("\(energy)", systemImage: "bolt.fill")
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .help("Energy \(energy)/5")
-                }
+        // One line: the timeline below is what the week view is for.
+        HStack(spacing: 4) {
+            Text(date.formatted(.dateTime.weekday(.abbreviated)))
+                .foregroundStyle(isToday ? Color.accentColor : .secondary)
+            Text(date.formatted(.dateTime.day()))
+                .fontWeight(isToday ? .bold : .medium)
+                .foregroundStyle(isToday ? Color.white : Color.primary)
+                .padding(.horizontal, isToday ? 5 : 0)
+                .background(isToday ? Color.accentColor : .clear, in: Capsule())
+            if let energy {
+                Label("\(energy)", systemImage: "bolt.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .help("Energy \(energy)/5")
             }
-            .font(.callout.monospacedDigit())
             if !allDay.isEmpty {
-                Text(allDay.count == 1 ? allDay[0] : "\(allDay.count) all-day")
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .padding(.horizontal, 4)
-                    .background(Color.blue.opacity(0.18), in: Capsule())
+                Label("\(allDay.count)", systemImage: "sun.max.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.blue)
                     .help(allDay.joined(separator: "\n"))
             }
         }
+        .font(.callout.monospacedDigit())
+        .lineLimit(1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(date.formatted(date: .complete, time: .omitted))\(energy.map { ", energy \($0) of 5" } ?? "")")
+        .accessibilityLabel("\(date.formatted(date: .complete, time: .omitted))\(energy.map { ", energy \($0) of 5" } ?? "")\(allDay.isEmpty ? "" : ", all day: " + allDay.joined(separator: ", "))")
     }
 }
 

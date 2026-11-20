@@ -16,6 +16,8 @@ struct EmoApp: App {
             fatalError("Could not open Emo's data store: \(error)")
         }
         self.container = container
+        // The built-in categories, on first launch. Names fall back to the defaults if this fails.
+        try? CategoryCatalog(context: container.mainContext).seedBuiltInsIfNeeded()
         _calendarSync = State(initialValue: CalendarSyncService(context: container.mainContext))
         _remindersSync = State(initialValue: RemindersSyncService(context: container.mainContext))
     }

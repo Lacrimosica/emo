@@ -19,3 +19,5 @@
 Verified: 9 clarifier tests with a scripted provider. In the app, the sheet opens and shows the availability banner.
 
 Not yet verified: a real on-device round trip. On 2026-11-13 this Mac reported "model still downloading". Re-run with `EMO_LIVE_AI=1 swift test --filter LiveProvider` once Apple Intelligence finishes downloading.
+
+2026-11-20: Re-ran `EMO_LIVE_AI=1 swift test --filter LiveProvider`. Still not verified: Apple Intelligence reports "still downloading" on this Mac, so both on-device tests fail at the availability check. The Ollama test fails because `gemma3:12b` is not pulled locally. Code unchanged; both are environment blockers.

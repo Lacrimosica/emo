@@ -7,10 +7,13 @@ public struct TaskDraft: Equatable, Sendable {
     public var estimatedHours: Double
     public var energyCost: EnergyCost
     public var category: TaskCategory
+    public var priority: TaskPriority = .normal
     public var deadline: Date?
     public var recurrence: Recurrence
     public var requiresTransit: Bool
     public var transitMinutes: Int
+    /// Plan as one unbroken block (see `TaskItem.keepTogether`).
+    public var keepTogether: Bool = false
     /// Ongoing practice with a weekly target (ticket 31); `estimatedHours` is ignored for these.
     public var isOngoing: Bool = false
     public var sessionsPerWeek: Int = TaskItem.defaultSessionsPerWeek
@@ -21,6 +24,7 @@ public struct TaskDraft: Equatable, Sendable {
         estimatedHours: Double = 1,
         energyCost: EnergyCost = .medium,
         category: TaskCategory = .personal,
+        priority: TaskPriority = .normal,
         deadline: Date? = nil,
         recurrence: Recurrence = .none,
         requiresTransit: Bool = false,
@@ -30,6 +34,7 @@ public struct TaskDraft: Equatable, Sendable {
         self.estimatedHours = estimatedHours
         self.energyCost = energyCost
         self.category = category
+        self.priority = priority
         self.deadline = deadline
         self.recurrence = recurrence
         self.requiresTransit = requiresTransit
@@ -39,8 +44,9 @@ public struct TaskDraft: Equatable, Sendable {
     /// A draft pre-filled from an existing task, for editing.
     public init(_ task: TaskItem) {
         self.init(name: task.name, estimatedHours: task.estimatedHours, energyCost: task.energyCost,
-                  category: task.category, deadline: task.deadline, recurrence: task.recurrence,
+                  category: task.category, priority: task.priority, deadline: task.deadline, recurrence: task.recurrence,
                   requiresTransit: task.requiresTransit, transitMinutes: task.transitMinutes)
+        keepTogether = task.keepTogether
         isOngoing = task.isOngoing
         sessionsPerWeek = task.sessionsPerWeek
         sessionHours = task.sessionHours
@@ -91,12 +97,14 @@ public struct Backlog {
             estimatedHours: draft.estimatedHours,
             energyCost: draft.energyCost,
             category: draft.category,
+            priority: draft.priority,
             recurrence: draft.recurrence,
             deadline: draft.deadline,
             requiresTransit: draft.requiresTransit,
             transitMinutes: draft.requiresTransit ? draft.transitMinutes : 0,
             createdAt: now
         )
+        task.keepTogether = draft.keepTogether
         draft.applyOngoing(to: task)
         context.insert(task)
         try context.save()
@@ -112,6 +120,28 @@ public struct Backlog {
     /// Open tasks, newest first.
     public func openTasks() throws -> [TaskItem] {
         try context.fetch(Self.openTasksDescriptor)
+    }
+
+    /// The order the backlog shows tasks in, which is the order planning favours them: priority,
+    /// then nearest deadline (none last), then oldest first.
+    public static func displayOrder(_ tasks: [TaskItem]) -> [TaskItem] {
+        tasks.sorted { a, b in
+            if a.priority != b.priority { return rank(a.priority) < rank(b.priority) }
+            switch (a.deadline, b.deadline) {
+            case let (x?, y?) where x != y: return x < y
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return a.createdAt < b.createdAt
+            }
+        }
+    }
+
+    private static func rank(_ priority: TaskPriority) -> Int {
+        switch priority {
+        case .first: 0
+        case .normal: 1
+        case .later: 2
+        }
     }
 
     /// Shared with SwiftUI's `@Query` so the list and the domain agree on what "backlog" means.

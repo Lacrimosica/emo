@@ -35,7 +35,7 @@ public struct ClarifierReply: StructuredOutput, Equatable {
                     "name": { "type": "string", "description": "Short task name, a few words." },
                     "estimatedHours": { "type": "number", "description": "Estimated hours of work." },
                     "energyCost": { "type": "string", "enum": ["low", "medium", "high"] },
-                    "category": { "type": "string", "enum": ["external_commitment", "self_care", "personal", "leisure"] }
+                    "category": { "type": "string", "description": "Exactly one of the category names listed in the instructions." }
                   },
                   "required": ["name", "estimatedHours", "energyCost", "category"],
                   "additionalProperties": false
@@ -60,7 +60,7 @@ public struct ProposedTask: Codable, Sendable, Equatable {
     @Guide(description: "How draining the task is.", .anyOf(["low", "medium", "high"]))
     public var energyCost: String
 
-    @Guide(description: "What kind of task it is.", .anyOf(["external_commitment", "self_care", "personal", "leisure"]))
+    @Guide(description: "Exactly one of the category names listed in the instructions.")
     public var category: String
 
     public init(name: String, estimatedHours: Double, energyCost: String, category: String) {
@@ -69,6 +69,28 @@ public struct ProposedTask: Codable, Sendable, Equatable {
         self.energyCost = energyCost
         self.category = category
     }
+}
+
+/// A category the assistant may choose, as the user named it.
+public struct CategoryOption: Sendable, Equatable {
+    public var key: String
+    public var name: String
+
+    public init(key: String, name: String) {
+        self.key = key
+        self.name = name
+    }
+
+    /// The four built-ins under their default names (used when no category list is passed).
+    public static let builtIns = TaskCategory.builtIns.map { CategoryOption(key: $0.key, name: $0.defaultName) }
+
+    /// What each built-in is for, to help the model choose.
+    static let builtInHints: [String: String] = [
+        TaskCategory.externalCommitment.key: "meetings and appointments",
+        TaskCategory.selfCare.key: "exercise, rest and health",
+        TaskCategory.personal.key: "errands and admin",
+        TaskCategory.leisure.key: "hobbies and socialising",
+    ]
 }
 
 /// Turns a loose description into a `TaskDraft`, asking at most one question per turn.
@@ -86,8 +108,7 @@ public struct TaskClarifier: Sendable {
     public static let instructions = """
         You are a personal scheduling assistant. The user describes something they need to do. \
         Work out a task with: a short name, estimated hours, energy cost (low, medium or high) \
-        and a category (external_commitment for meetings and appointments, self_care for exercise, \
-        rest and health, personal for errands and admin, leisure for hobbies and socialising).
+        and a category from the list below, written exactly as listed.
         Rules:
         - Ask at most ONE short clarifying question per reply, and only if you really need it.
         - Make sensible assumptions instead of asking about minor details.
@@ -97,9 +118,19 @@ public struct TaskClarifier: Sendable {
     private static let mustProposeNow = "You have asked enough questions. Reply with the task now, using your best guesses."
 
     private let provider: any LLMProvider
+    private let categories: [CategoryOption]
 
-    public init(provider: any LLMProvider) {
+    /// `categories`: the user's categories (built-ins by default); the assistant picks one by name.
+    public init(provider: any LLMProvider, categories: [CategoryOption] = CategoryOption.builtIns) {
         self.provider = provider
+        self.categories = categories.isEmpty ? CategoryOption.builtIns : categories
+    }
+
+    /// The category list for the instructions, with what each built-in is for.
+    static func categoryList(_ categories: [CategoryOption]) -> String {
+        "Categories:\n" + categories.map { option in
+            CategoryOption.builtInHints[option.key].map { "- \(option.name) (\($0))" } ?? "- \(option.name)"
+        }.joined(separator: "\n")
     }
 
     /// The next step given the conversation so far (which must end with a user message).
@@ -108,11 +139,12 @@ public struct TaskClarifier: Sendable {
         let questionsAsked = conversation.filter { $0.role == .assistant }.count
         let mustPropose = questionsAsked >= Self.maxQuestions
         var instructions = EmoPrompt.base + AIMemory.instructions(memory) + "\n\n" + Self.instructions
+            + "\n" + Self.categoryList(categories)
         if mustPropose { instructions += "\n" + Self.mustProposeNow }
 
         let reply = try await provider.generate(ClarifierReply.self, instructions: instructions, conversation: conversation)
 
-        if let task = reply.task, let draft = Self.draft(from: task) {
+        if let task = reply.task, let draft = Self.draft(from: task, categories: categories) {
             return .propose(draft)
         }
         if !mustPropose, let question = Self.singleQuestion(reply.question) {
@@ -130,8 +162,9 @@ public struct TaskClarifier: Sendable {
         return text
     }
 
-    /// Maps a model proposal onto a valid draft, clamping the estimate and defaulting unknown enums.
-    static func draft(from task: ProposedTask) -> TaskDraft? {
+    /// Maps a model proposal onto a valid draft, clamping the estimate and defaulting unknown values.
+    /// The category is matched by name (any case or accents) or key; anything else becomes Personal.
+    static func draft(from task: ProposedTask, categories: [CategoryOption] = CategoryOption.builtIns) -> TaskDraft? {
         let name = task.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, task.estimatedHours.isFinite else { return nil }
         let hours = min(max((task.estimatedHours * 4).rounded() / 4, 0.25), 24)
@@ -139,7 +172,16 @@ public struct TaskClarifier: Sendable {
             name: name,
             estimatedHours: hours,
             energyCost: EnergyCost(rawValue: task.energyCost.lowercased()) ?? .medium,
-            category: TaskCategory(rawValue: task.category.lowercased()) ?? .personal
+            category: category(named: task.category, in: categories)
         )
+    }
+
+    static func category(named text: String, in categories: [CategoryOption]) -> TaskCategory {
+        let wanted = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let match = categories.first {
+            $0.key == wanted.lowercased()
+                || $0.name.compare(wanted, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        return match.map { TaskCategory(key: $0.key) } ?? .personal
     }
 }

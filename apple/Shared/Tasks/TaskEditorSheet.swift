@@ -16,6 +16,8 @@ struct TaskEditorSheet: View {
     /// Present in both apps; used to write the `ongoing:` line back for tasks from Reminders.
     @Environment(RemindersSyncService.self) private var remindersSync: RemindersSyncService?
 
+    @Query(sort: [SortDescriptor(\CategoryDefinition.sortIndex)]) private var categories: [CategoryDefinition]
+
     @State private var draft = TaskDraft()
     @State private var hasDeadline = false
     @State private var deadline = Calendar.current.startOfDay(for: .now).addingTimeInterval(86_400)
@@ -39,11 +41,18 @@ struct TaskEditorSheet: View {
                         LabeledContent("Estimate", value: draft.estimatedHours.hoursLabel)
                     }
                 }
+                Toggle("Keep in one block", isOn: $draft.keepTogether)
+                    .help("Plan it as one unbroken block instead of splitting it across gaps")
             } footer: {
                 if draft.isOngoing {
                     Text("A practice, not a one-off: Emo spreads the sessions over the week, each done session counts, and the task stays until you stop it.")
                 }
             }
+
+            Picker("Priority", selection: $draft.priority) {
+                ForEach(TaskPriority.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
 
             Picker("Energy", selection: $draft.energyCost) {
                 ForEach(EnergyCost.allCases) { Text($0.label).tag($0) }
@@ -51,7 +60,7 @@ struct TaskEditorSheet: View {
             .pickerStyle(.segmented)
 
             Picker("Category", selection: $draft.category) {
-                ForEach(TaskCategory.allCases) { Text($0.label).tag($0) }
+                ForEach(categories) { Text($0.name).tag($0.taskCategory) }
             }
 
             if !draft.isOngoing {
@@ -124,6 +133,9 @@ struct TaskEditorSheet: View {
                 let task = try Backlog(context: modelContext).add(final)
                 try? SchedulingMemory(context: modelContext).record(task)
             }
+            // Fit the new or changed task into a day the user has already planned (a day nobody
+            // planned yet waits for Plan Day). Best effort: the task is saved either way.
+            try? DayPlanning(context: modelContext).refreshPlannedDays()
             dismiss()
             onSaved()
         } catch {

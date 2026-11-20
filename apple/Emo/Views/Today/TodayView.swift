@@ -15,7 +15,6 @@ struct TodayView: View {
     @State private var selectedEventID: UUID?
     @State private var editingEventID: UUID?
     /// Set when "Plan Day" had to ask for a check-in first; planning resumes once it's saved.
-    @State private var planAfterCheckIn = false
     @State private var planMessage: String?
     @State private var isAddingTransit = false
     @State private var isConfirmingUnscheduleAll = false
@@ -124,14 +123,7 @@ struct TodayView: View {
         .onChange(of: day) {
             selectedEventID = nil
             editingEventID = nil
-            planAfterCheckIn = false
             planMessage = nil
-        }
-        .onChange(of: checkIns.first?.energy) { _, energy in
-            if planAfterCheckIn, energy != nil {
-                planAfterCheckIn = false
-                planDay()
-            }
         }
         .task(id: planMessage) {
             guard planMessage != nil else { return }
@@ -141,13 +133,8 @@ struct TodayView: View {
     }
 
     private func planDay() {
-        switch DayScreen.plan(day, today: today, hasCheckIn: !checkIns.isEmpty, context: modelContext) {
-        case .needsCheckIn:
-            planAfterCheckIn = true
-            onCheckIn()
-        case .message(let message):
-            withAnimation { planMessage = message }
-        }
+        let message = DayScreen.plan(day, hasCheckIn: !checkIns.isEmpty, context: modelContext)
+        withAnimation { planMessage = message }
     }
 
     private func unscheduleAll() {

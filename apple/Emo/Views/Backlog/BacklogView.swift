@@ -6,8 +6,15 @@ struct BacklogView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(Backlog.openTasksDescriptor) private var tasks: [TaskItem]
     @Query private var sessions: [TaskSession]
+    @Query(sort: [SortDescriptor(\CategoryDefinition.sortIndex)]) private var categories: [CategoryDefinition]
+    @Query private var blocks: [CalendarEvent]
+
+    init() {
+        _blocks = Query(TaskSchedule.futureBlocks(from: .now))
+    }
 
     @State private var editor: EditorTarget?
+    @State private var searchText = ""
     @State private var isChatting = false
     @State private var isAddingContext = false
     /// The task "Clarify with Emo" is open for.
@@ -38,6 +45,8 @@ struct BacklogView: View {
                 } actions: {
                     Button("Add Task") { editor = .new }
                 }
+            } else if visibleTasks.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
                 List {
                     ForEach(groups, id: \.title) { group in
@@ -53,6 +62,7 @@ struct BacklogView: View {
             }
         }
         .navigationTitle("Backlog")
+        .searchable(text: $searchText, prompt: "Search tasks")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
@@ -95,7 +105,8 @@ struct BacklogView: View {
     }
 
     private func row(for task: TaskItem) -> some View {
-        TaskRow(task: task, today: .today(), doneThisWeek: doneThisWeek(task), doneToday: doneToday(task)) { complete(task) }
+        TaskRow(task: task, today: .today(), categories: categories, nextStart: nextStarts[task.id],
+                doneThisWeek: doneThisWeek(task), doneToday: doneToday(task)) { complete(task) }
             .contentShape(Rectangle())
             .onTapGesture(count: 2) { editor = .edit(task) }
             .contextMenu { menu(for: task) }
@@ -116,15 +127,15 @@ struct BacklogView: View {
 
     /// Schedulable work first (untitled), then each kept-but-unscheduled role in list order.
     private var groups: [RoleGroup] {
-        let byRole = Dictionary(grouping: tasks.filter { !$0.isSchedulable }) { $0.listRole! }
+        let byRole = Dictionary(grouping: visibleTasks.filter { !$0.isSchedulable }) { $0.listRole! }
         let parked = ListRole.allCases.filter { !$0.isSchedulable }.compactMap { role -> RoleGroup? in
             guard let tasks = byRole[role] else { return nil }
             return RoleGroup(title: role.label, systemImage: role.systemImage, note: role == .inbox
                          ? "Clarify these in Reminders: move each to an NA list to have it scheduled." : nil,
                          tasks: tasks)
         }
-        let active = tasks.filter { $0.isSchedulable && !$0.isRoutineItem }
-        let routine = tasks.filter(\.isRoutineItem)
+        let active = Backlog.displayOrder(visibleTasks.filter { $0.isSchedulable && !$0.isRoutineItem })
+        let routine = visibleTasks.filter(\.isRoutineItem)
         let checklist = routine.isEmpty ? [] : [RoleGroup(
             title: "Checklist items", systemImage: "checklist",
             note: "Planned together as one daily checklist block. Ticking an item marks it done for today.", tasks: routine)]
@@ -138,6 +149,18 @@ struct BacklogView: View {
         Button("Schedule at…", systemImage: "pin") { pinning = task }
         Button(task.isDaily ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
             .disabled(doneToday(task))
+        Menu("Priority", systemImage: "arrow.up.arrow.down") {
+            ForEach(TaskPriority.allCases) { priority in
+                Button(priority.label) { setPriority(priority, for: task) }
+                    .disabled(task.priority == priority)
+            }
+        }
+        Menu("Category", systemImage: "tag") {
+            ForEach(categories) { category in
+                Button(category.name) { setCategory(category.taskCategory, for: task) }
+                    .disabled(task.categoryRaw == category.key)
+            }
+        }
         // The checklist is Emo's own: it follows the routine list, so it can't be stopped, clarified or deleted.
         if task.isOngoing, !task.isChecklist {
             Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
@@ -152,6 +175,20 @@ struct BacklogView: View {
     }
 
     private var lifecycle: TaskLifecycle { TaskLifecycle(context: modelContext) }
+
+    /// The tasks matching the search field (all of them when it's empty).
+    private var visibleTasks: [TaskItem] { tasks.filter { $0.matches(searchText) } }
+
+    /// When each task is next scheduled, from the calendar's future task blocks.
+    private var nextStarts: [UUID: Date] { TaskSchedule.nextStarts(blocks) }
+
+    private func setPriority(_ priority: TaskPriority, for task: TaskItem) {
+        do { try TaskQuickEdit.apply({ $0.priority = priority }, to: task, context: modelContext) } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func setCategory(_ category: TaskCategory, for task: TaskItem) {
+        do { try TaskQuickEdit.apply({ $0.category = category }, to: task, context: modelContext) } catch { errorMessage = error.localizedDescription }
+    }
 
     /// Completes a task; for an ongoing one, logs today's session instead.
     private func complete(_ task: TaskItem) {
@@ -186,6 +223,9 @@ struct BacklogView: View {
 private struct TaskRow: View {
     let task: TaskItem
     let today: LocalDay
+    let categories: [CategoryDefinition]
+    /// When the task is next scheduled; nil if it isn't.
+    var nextStart: Date?
     var doneThisWeek = 0
     var doneToday = false
     let onComplete: () -> Void
@@ -217,7 +257,11 @@ private struct TaskRow: View {
                     if let area = task.listArea {
                         Label(area, systemImage: task.listRole?.systemImage ?? "list.bullet")
                     }
-                    Text(task.category.label)
+                    CategoryChip(key: task.categoryRaw, categories: categories)
+                    PriorityTag(priority: task.priority)
+                    if !task.isRoutineItem {
+                        ScheduleLabel(start: nextStart)
+                    }
                     if task.isOngoing {
                         OngoingProgressLabel(task: task, doneThisWeek: doneThisWeek)
                     }
@@ -230,7 +274,7 @@ private struct TaskRow: View {
                     if let from = task.availableFromDayKey.flatMap(LocalDay.init(key:)), from > today {
                         Label("From \(from.start().formatted(.dateTime.weekday(.abbreviated)))", systemImage: "clock")
                     }
-                    if task.skippedDayKey == today.key {
+                    if task.isSkipped(on: today) {
                         Label("Skipped today", systemImage: "forward")
                     }
                     if task.needsReview {

@@ -7,6 +7,7 @@ import SwiftUI
 struct TaskChatSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: [SortDescriptor(\CategoryDefinition.sortIndex)]) private var categories: [CategoryDefinition]
 
     @State private var conversation: [ChatTurn] = []
     @State private var input = ""
@@ -35,7 +36,7 @@ struct TaskChatSheet: View {
                             ProgressView().controlSize(.small).padding(.leading, 8).id("thinking")
                         }
                         if let proposal {
-                            ProposalCard(draft: proposal, onAdd: { reviewing = proposal }, onKeepTalking: {
+                            ProposalCard(draft: proposal, categories: categories, onAdd: { reviewing = proposal }, onKeepTalking: {
                                 self.proposal = nil
                                 inputFocused = true
                             })
@@ -141,10 +142,11 @@ struct TaskChatSheet: View {
         isThinking = true
         let snapshot = conversation
         let memory = (try? AIMemory(context: modelContext).relevant(to: snapshot.map(\.text).joined(separator: " "))) ?? []
+        let options = categories.map { CategoryOption(key: $0.key, name: $0.name) }
         Task {
             defer { isThinking = false }
             do {
-                switch try await TaskClarifier(provider: provider).next(snapshot, memory: memory) {
+                switch try await TaskClarifier(provider: provider, categories: options).next(snapshot, memory: memory) {
                 case .ask(let question): conversation.append(ChatTurn(.assistant, question))
                 case .propose(let draft): proposal = draft
                 }
@@ -185,6 +187,7 @@ struct ChatBubble: View {
 
 private struct ProposalCard: View {
     let draft: TaskDraft
+    let categories: [CategoryDefinition]
     let onAdd: () -> Void
     let onKeepTalking: () -> Void
 
@@ -195,7 +198,7 @@ private struct ProposalCard: View {
                 HStack(spacing: 10) {
                     Label(draft.estimatedHours.hoursLabel, systemImage: "clock")
                     EnergyBadge(cost: draft.energyCost)
-                    Text(draft.category.label).foregroundStyle(.secondary)
+                    CategoryChip(key: draft.category.key, categories: categories)
                 }
                 .font(.callout)
                 HStack {

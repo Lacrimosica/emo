@@ -73,12 +73,14 @@ public struct TaskLifecycle {
             estimatedHours: task.estimatedHours,
             energyCost: task.energyCost,
             category: task.category,
+            priority: task.priority,
             recurrence: task.recurrence,
             deadline: task.deadline.flatMap { calendar.date(byAdding: .day, value: step, to: $0) },
             requiresTransit: task.requiresTransit,
             transitMinutes: task.transitMinutes,
             createdAt: now
         )
+        next.keepTogether = task.keepTogether
         next.availableFromDayKey = day.adding(days: step, calendar: calendar).key
         context.insert(next)
         try context.save()
@@ -117,7 +119,7 @@ public struct TaskLifecycle {
         where block.kind == .taskBlock && block.start >= now && LocalDay(block.start, calendar: calendar) == day {
             try memory.record(.skipped, for: task, at: block.start)
         }
-        task.skippedDayKey = day.key
+        task.addSkip(on: day)
         try context.save()
         var changed = try engine.clearFutureEvents(forTask: task.id, now: now, onlyOn: day, calendar: calendar)
         changed.insert(day)
@@ -134,6 +136,9 @@ public struct TaskLifecycle {
             || draft.isOngoing != task.isOngoing
             || (draft.isOngoing && (draft.sessionsPerWeek != task.sessionsPerWeek || draft.sessionHours != task.sessionHours))
             || draft.energyCost != task.energyCost
+            || draft.priority != task.priority
+            || draft.keepTogether != task.keepTogether
+            || draft.category != task.category
             || draft.deadline != task.deadline
             || draft.requiresTransit != task.requiresTransit
             || transitMinutes != task.transitMinutes
@@ -142,6 +147,8 @@ public struct TaskLifecycle {
         task.estimatedHours = draft.estimatedHours
         task.energyCost = draft.energyCost
         task.category = draft.category
+        task.priority = draft.priority
+        task.keepTogether = draft.keepTogether
         task.deadline = draft.deadline
         task.recurrence = draft.recurrence
         task.requiresTransit = draft.requiresTransit
@@ -180,8 +187,9 @@ public struct TaskLifecycle {
         var changed = try engine.clearFutureEvents(forTask: task.id, now: now, includingPinned: false, calendar: calendar)
         let block = try engine.pinTaskBlock(task, start: start, end: end, now: now)
         changed.insert(LocalDay(start, calendar: calendar))
-        if task.skippedDayKey == LocalDay(start, calendar: calendar).key {
-            task.skippedDayKey = nil   // pinning onto a skipped day un-skips it
+        let startDay = LocalDay(start, calendar: calendar)
+        if task.isSkipped(on: startDay) {
+            task.removeSkip(on: startDay)   // pinning onto a skipped day un-skips it
             try context.save()
         }
         try replan(changed, now: now)

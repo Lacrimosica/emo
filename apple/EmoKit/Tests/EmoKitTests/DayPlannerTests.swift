@@ -49,12 +49,12 @@ import Testing
     }
 
     @Test func energyBudgetCapsTheDay() {
-        // Energy 1 → 2 hours of task work.
+        // Energy 1 → 2 hours of task work. The medium task fits the low-energy day better, so it goes first.
         let a = task(1.5, .high), b = task(1.5, .medium)
         let plan = DayPlanner.plan(input(tasks: [a, b], energy: 1))
         #expect(plan.plannedDuration == 2 * 3600)
-        #expect(plan.blocks.last == PlannedBlock(taskID: b.id, start: at(10, 30), end: at(11)))
-        #expect(plan.overflow.map(\.id) == [b.id])
+        #expect(plan.blocks.last == PlannedBlock(taskID: a.id, start: at(10, 30), end: at(11)))
+        #expect(plan.overflow.map(\.id) == [a.id])
         #expect(plan.overflow.first?.remaining == 3600)
     }
 

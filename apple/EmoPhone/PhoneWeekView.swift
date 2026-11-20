@@ -6,6 +6,8 @@ import SwiftUI
 /// Tapping a day or an event opens that day in Today.
 struct PhoneWeekView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.modelContext) private var modelContext
+    @State private var planMessage: String?
     let weekStart: LocalDay
     let today: LocalDay
     let onChangeWeek: (LocalDay) -> Void
@@ -65,6 +67,23 @@ struct PhoneWeekView: View {
             .onAppear { if days.contains(today) { proxy.scrollTo(today, anchor: .top) } }
         }
         .navigationTitle(title)
+        .safeAreaInset(edge: .bottom) {
+            if let planMessage {
+                Label(planMessage, systemImage: "wand.and.stars")
+                    .font(.callout)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: weekStart) { planMessage = nil }
+        .task(id: planMessage) {
+            guard planMessage != nil else { return }
+            try? await Task.sleep(for: .seconds(10))
+            withAnimation { planMessage = nil }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -72,6 +91,11 @@ struct PhoneWeekView: View {
                     .disabled(weekStart == today.startOfWeek())
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Plan Week", systemImage: "wand.and.stars") {
+                    let message = DayScreen.planWeek(starting: weekStart, today: today, context: modelContext)
+                    withAnimation { planMessage = message }
+                }
+                .disabled(weekStart.adding(days: 6) < today)
                 Button("Previous Week", systemImage: "chevron.left") { onChangeWeek(weekStart.adding(days: -7)) }
                 Button("Next Week", systemImage: "chevron.right") { onChangeWeek(weekStart.adding(days: 7)) }
             }

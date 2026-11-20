@@ -7,8 +7,15 @@ struct PhoneBacklogView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(Backlog.openTasksDescriptor) private var tasks: [TaskItem]
     @Query private var sessions: [TaskSession]
+    @Query(sort: [SortDescriptor(\CategoryDefinition.sortIndex)]) private var categories: [CategoryDefinition]
+    @Query private var blocks: [CalendarEvent]
+
+    init() {
+        _blocks = Query(TaskSchedule.futureBlocks(from: .now))
+    }
 
     @State private var editing: TaskItem?
+    @State private var searchText = ""
     @State private var isAdding = false
     @State private var isChatting = false
     @State private var isAddingContext = false
@@ -28,9 +35,14 @@ struct PhoneBacklogView: View {
                         .buttonStyle(.borderedProminent)
                     Button("Add Task") { isAdding = true }
                 }
+            } else if visibleTasks.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             } else {
-                List(tasks) { task in
-                    Button { editing = task } label: { PhoneTaskRow(task: task, doneThisWeek: doneThisWeek(task), doneToday: doneToday(task)) }
+                List(Backlog.displayOrder(visibleTasks)) { task in
+                    Button { editing = task } label: {
+                        PhoneTaskRow(task: task, categories: categories, nextStart: nextStarts[task.id],
+                                     doneThisWeek: doneThisWeek(task), doneToday: doneToday(task))
+                    }
                         .foregroundStyle(.primary)
                         .swipeActions(edge: .leading) {
                             if !doneToday(task) {
@@ -47,6 +59,18 @@ struct PhoneBacklogView: View {
                             }
                             Button(task.isDaily ? "Done for Today" : "Complete", systemImage: "checkmark.circle") { complete(task) }
                                 .disabled(doneToday(task))
+                            Menu("Priority", systemImage: "arrow.up.arrow.down") {
+                                ForEach(TaskPriority.allCases) { priority in
+                                    Button(priority.label) { setPriority(priority, for: task) }
+                                        .disabled(task.priority == priority)
+                                }
+                            }
+                            Menu("Category", systemImage: "tag") {
+                                ForEach(categories) { category in
+                                    Button(category.name) { setCategory(category.taskCategory, for: task) }
+                                        .disabled(task.categoryRaw == category.key)
+                                }
+                            }
                             // The checklist follows the routine list: it can't be stopped or deleted.
                             if task.isOngoing, !task.isChecklist {
                                 Button("Stop Ongoing Task", systemImage: "stop.circle") { stop(task) }
@@ -65,6 +89,7 @@ struct PhoneBacklogView: View {
             }
         }
         .navigationTitle("Backlog")
+        .searchable(text: $searchText, prompt: "Search tasks")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
@@ -106,6 +131,20 @@ struct PhoneBacklogView: View {
         }
     }
 
+    /// The tasks matching the search field (all of them when it's empty).
+    private var visibleTasks: [TaskItem] { tasks.filter { $0.matches(searchText) } }
+
+    /// When each task is next scheduled, from the calendar's future task blocks.
+    private var nextStarts: [UUID: Date] { TaskSchedule.nextStarts(blocks) }
+
+    private func setPriority(_ priority: TaskPriority, for task: TaskItem) {
+        do { try TaskQuickEdit.apply({ $0.priority = priority }, to: task, context: modelContext) } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func setCategory(_ category: TaskCategory, for task: TaskItem) {
+        do { try TaskQuickEdit.apply({ $0.category = category }, to: task, context: modelContext) } catch { errorMessage = error.localizedDescription }
+    }
+
     /// Completes a task; for an ongoing one, logs today's session instead.
     private func complete(_ task: TaskItem) {
         let lifecycle = TaskLifecycle(context: modelContext)
@@ -138,6 +177,8 @@ struct PhoneBacklogView: View {
 
 private struct PhoneTaskRow: View {
     let task: TaskItem
+    let categories: [CategoryDefinition]
+    var nextStart: Date?
     var doneThisWeek = 0
     var doneToday = false
 
@@ -157,7 +198,11 @@ private struct PhoneTaskRow: View {
                     if task.isOngoing {
                         OngoingProgressLabel(task: task, doneThisWeek: doneThisWeek)
                     } else {
-                        Text(task.category.label)
+                        CategoryChip(key: task.categoryRaw, categories: categories)
+                    }
+                    PriorityTag(priority: task.priority)
+                    if !task.isRoutineItem {
+                        ScheduleLabel(start: nextStart)
                     }
                     if let deadline = task.deadline {
                         Label(deadline.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")

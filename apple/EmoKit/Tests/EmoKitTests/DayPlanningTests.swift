@@ -101,9 +101,10 @@ import Testing
         try planning.plan(day, now: at(7))
         try planning.plan(day, now: at(7))   // idempotent: same result the second time
 
+        // On a low-energy day the medium task fits better, so B takes today and A spills over.
         let today = try taskBlocks(on: day), next = try taskBlocks(on: tomorrow)
-        #expect(today.map(\.title) == ["A"])
-        #expect(next.map(\.title) == ["B"])
+        #expect(today.map(\.title) == ["B"])
+        #expect(next.map(\.title) == ["A"])
     }
 
     @Test func taskTimeOnOtherDaysIsNotPlannedAgain() throws {

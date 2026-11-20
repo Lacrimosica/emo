@@ -68,8 +68,9 @@ import Testing
     }
 
     @Test func thePreferenceNeverOverridesPriority() {
-        // Budget for one task: the high-energy one wins even though the other prefers this time.
-        let urgent = PlannableTask(id: UUID(), remaining: 3600, energyCost: .high, deadline: nil, createdAt: .distantPast)
+        // Budget for one task: the one the user marked first wins even though the other prefers this time.
+        let urgent = PlannableTask(id: UUID(), remaining: 3600, energyCost: .medium, deadline: nil, createdAt: .distantPast,
+                                   priority: .first)
         let preferring = PlannableTask(id: UUID(), remaining: 3600, energyCost: .low, deadline: nil, createdAt: .distantPast,
                                        preferredWindow: PreferredWindow(startMinutes: 9 * 60, endMinutes: 13 * 60))
         var settings = PlannerSettings.default

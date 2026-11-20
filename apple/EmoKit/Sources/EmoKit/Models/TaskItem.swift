@@ -14,15 +14,23 @@ public final class TaskItem {
     public var name: String = ""
     public var estimatedHours: Double = 1
     public var energyCostRaw: String = EnergyCost.medium.rawValue
+    /// `TaskCategory.key` (see `CategoryDefinition`).
     public var categoryRaw: String = TaskCategory.personal.rawValue
+    /// `TaskPriority` raw value.
+    public var priorityRaw: String = TaskPriority.normal.rawValue
     public var recurrenceRaw: String = Recurrence.none.rawValue
     public var deadline: Date?
     public var requiresTransit: Bool = false
     public var transitMinutes: Int = 0
+    /// Plan it as one block, never split across gaps (a task that needs unbroken time).
+    public var keepTogether: Bool = false
     public var createdAt: Date = Date()
     public var completedAt: Date?
-    /// `LocalDay.key` of a day the user skipped this task for; planning leaves it out of that day.
+    /// Legacy single skipped day (before `skippedDayKeysRaw`); still honoured, never written.
     public var skippedDayKey: String?
+    /// `LocalDay.key`s of the days the user skipped this task for, comma-separated. Planning leaves
+    /// the task out of each of them (see `skippedDays`).
+    public var skippedDayKeysRaw: String = ""
     /// `LocalDay.key` of the first day this task may be planned (set on the next occurrence of a
     /// recurring task, so it doesn't land again on the day the previous one was completed).
     public var availableFromDayKey: String?
@@ -63,6 +71,7 @@ public final class TaskItem {
         estimatedHours: Double,
         energyCost: EnergyCost,
         category: TaskCategory,
+        priority: TaskPriority = .normal,
         recurrence: Recurrence = .none,
         deadline: Date? = nil,
         requiresTransit: Bool = false,
@@ -72,7 +81,8 @@ public final class TaskItem {
         self.name = name
         self.estimatedHours = estimatedHours
         self.energyCostRaw = energyCost.rawValue
-        self.categoryRaw = category.rawValue
+        self.categoryRaw = category.key
+        self.priorityRaw = priority.rawValue
         self.recurrenceRaw = recurrence.rawValue
         self.deadline = deadline
         self.requiresTransit = requiresTransit
@@ -86,8 +96,36 @@ public final class TaskItem {
     }
 
     public var category: TaskCategory {
-        get { TaskCategory(rawValue: categoryRaw) ?? .personal }
-        set { categoryRaw = newValue.rawValue }
+        get { TaskCategory(key: categoryRaw) }
+        set { categoryRaw = newValue.key }
+    }
+
+    public var priority: TaskPriority {
+        get { TaskPriority(rawValue: priorityRaw) ?? .normal }
+        set { priorityRaw = newValue.rawValue }
+    }
+
+    /// Every day this task was skipped for.
+    public var skippedDays: Set<String> {
+        var keys = Set(skippedDayKeysRaw.split(separator: ",").map(String.init))
+        if let legacy = skippedDayKey { keys.insert(legacy) }
+        return keys
+    }
+
+    public func isSkipped(on day: LocalDay) -> Bool { skippedDays.contains(day.key) }
+
+    /// Records a skip for `day`. Other skipped days are kept.
+    public func addSkip(on day: LocalDay) {
+        var keys = Set(skippedDayKeysRaw.split(separator: ",").map(String.init))
+        keys.insert(day.key)
+        skippedDayKeysRaw = keys.sorted().joined(separator: ",")
+    }
+
+    /// Un-skips `day` (pinning onto a skipped day does this).
+    public func removeSkip(on day: LocalDay) {
+        let keys = Set(skippedDayKeysRaw.split(separator: ",").map(String.init)).subtracting([day.key])
+        skippedDayKeysRaw = keys.sorted().joined(separator: ",")
+        if skippedDayKey == day.key { skippedDayKey = nil }
     }
 
     public var recurrence: Recurrence {
@@ -176,9 +214,18 @@ public final class TaskItem {
         return role == .inbox || name.split(whereSeparator: \.isWhitespace).count <= 2
     }
 
+    /// Backlog search: every word of `query` appears in the name, notes or list area (any case,
+    /// any accents). An empty query matches everything.
+    public func matches(_ query: String) -> Bool {
+        let words = query.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        let haystack = [name, notes ?? "", listArea ?? ""].joined(separator: " ")
+        return words.allSatisfy { haystack.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+    }
+
     /// Whether planning may place this task on `day`.
     public func isPlannable(on day: LocalDay) -> Bool {
-        guard !isCompleted, isSchedulable, !isRoutineItem, skippedDayKey != day.key else { return false }
+        guard !isCompleted, isSchedulable, !isRoutineItem, !isSkipped(on: day) else { return false }
         if let from = availableFromDayKey, day.key < from { return false }
         return true
     }

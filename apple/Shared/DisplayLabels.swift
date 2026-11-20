@@ -39,17 +39,6 @@ extension CalendarEventKind {
     }
 }
 
-extension TaskCategory {
-    var label: String {
-        switch self {
-        case .externalCommitment: "External commitment"
-        case .selfCare: "Self care"
-        case .personal: "Personal"
-        case .leisure: "Leisure"
-        }
-    }
-}
-
 extension Double {
     /// 1.5 → "1h 30m", 0.75 → "45m", 2 → "2h".
     var hoursLabel: String {

@@ -20,6 +20,8 @@ public struct DayPlanning {
         public var spill: DayResult
         /// Tasks with work left that fit on neither day.
         public var unplacedTaskCount: Int
+        /// Names of those tasks, in the order planning would have placed them.
+        public var unplacedTaskNames: [String] = []
         /// Names of tasks marked `when: today` for the planned day that didn't fully fit on it.
         public var unmetTodayGoals: [String] = []
     }
@@ -38,17 +40,27 @@ public struct DayPlanning {
     private var engine: CalendarEngine { CalendarEngine(context: context) }
 
     @discardableResult
-    public func plan(_ day: LocalDay, now: Date = Date()) throws -> Summary {
+    /// `spill`: false plans `day` alone, leaving the next day untouched (the last day of a range).
+    public func plan(_ day: LocalDay, now: Date = Date(), spill: Bool = true) throws -> Summary {
         let next = day.adding(days: 1, calendar: calendar)
         let tasks = try Backlog(context: context).openTasks()
         let tasksByID = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
 
         // Release both days' replaceable blocks before measuring what's left to do.
         var replaceable: Set<UUID> = []
-        for d in [day, next] {
+        for d in spill ? [day, next] : [day] {
             replaceable.formUnion(try engine.replaceableTaskBlocks(on: d, from: from(d, now), calendar: calendar).map(\.id))
         }
         let kept = try keptTaskTime(excluding: replaceable)
+        // Categories: how much of this week's time each already has, against the user's targets.
+        let categoryOf = Dictionary(try context.fetch(FetchDescriptor<TaskItem>()).map { ($0.id, $0.categoryRaw) },
+                                    uniquingKeysWith: { first, _ in first })
+        let targets = try CategoryCatalog(context: context).weeklyTargets()
+        let weekly = try weeklyTaskTime(containing: day, excluding: replaceable, categoryOf: categoryOf)
+        func categoryBehind(_ t: TaskItem) -> Bool {
+            guard let target = targets[t.categoryRaw] else { return false }
+            return weekly[t.categoryRaw, default: 0] < target
+        }
         let ongoing = OngoingSchedule(context: context, calendar: calendar)
         // Learned time-of-day preferences (ticket 20), worked out once per plan.
         let learned = Dictionary(uniqueKeysWithValues: try TimeOfDayMemory(context: context, calendar: calendar)
@@ -66,13 +78,15 @@ public struct DayPlanning {
                 return PlannableTask(id: t.id, remaining: due, energyCost: t.energyCost,
                                      deadline: try ongoing.mustFitBy(t, on: d), createdAt: t.createdAt,
                                      transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
-                                     goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
+                                     goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t),
+                                     priority: t.priority, categoryBehind: categoryBehind(t), keepTogether: t.keepTogether)
             }
             return PlannableTask(id: t.id,
                           remaining: max(reserved(t) - (kept[t.id] ?? 0), 0),
                           energyCost: t.energyCost, deadline: t.deadline, createdAt: t.createdAt,
                           transit: t.requiresTransit ? TimeInterval(max(t.transitMinutes, 0) * 60) : 0,
-                          goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t))
+                          goal: t.goal(on: d, calendar: calendar), preferredWindow: window(t),
+                          priority: t.priority, categoryBehind: categoryBehind(t), keepTogether: t.keepTogether)
         }
 
         // Day one gets every task it may hold; day two gets day one's overflow plus tasks that
@@ -80,19 +94,51 @@ public struct DayPlanning {
         let firstTasks = try tasks.filter { $0.isPlannable(on: day) }.compactMap { try plannable($0, on: day) }
         let first = try planAndWrite(day, tasks: firstTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
         // Ongoing tasks are worked out afresh for day two (day one's new blocks now count).
-        let laterTasks = try tasks.filter { t in
-            t.isOngoing ? t.isPlannable(on: next) : !t.isPlannable(on: day) && t.isPlannable(on: next)
-        }.compactMap { try plannable($0, on: next) }
-        let secondTasks = first.overflow.filter { o in
-            guard let t = tasksByID[o.id] else { return false }
-            return !t.isOngoing && t.isPlannable(on: next)
-        } + laterTasks
-        let second = try planAndWrite(next, tasks: secondTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
+        let second: DayPlan
+        if spill {
+            let laterTasks = try tasks.filter { t in
+                t.isOngoing ? t.isPlannable(on: next) : !t.isPlannable(on: day) && t.isPlannable(on: next)
+            }.compactMap { try plannable($0, on: next) }
+            let secondTasks = first.overflow.filter { o in
+                guard let t = tasksByID[o.id] else { return false }
+                return !t.isOngoing && t.isPlannable(on: next)
+            } + laterTasks
+            second = try planAndWrite(next, tasks: secondTasks, replaceable: replaceable, tasksByID: tasksByID, now: now)
+        } else {
+            // Nothing moves on: whatever didn't fit today is what's left over.
+            second = DayPlan(blocks: [], overflow: first.overflow.filter { !(tasksByID[$0.id]?.isOngoing ?? false) })
+        }
 
         // A today goal that didn't fit is reported, not silently moved to tomorrow.
         let unmet = first.overflow.filter { $0.goal == .today }.compactMap { tasksByID[$0.id]?.name }
         return Summary(planned: result(first, day), spill: result(second, next),
-                       unplacedTaskCount: second.overflow.count, unmetTodayGoals: unmet)
+                       unplacedTaskCount: second.overflow.count,
+                       unplacedTaskNames: second.overflow.compactMap { tasksByID[$0.id]?.name },
+                       unmetTodayGoals: unmet)
+    }
+
+    public struct RangeSummary: Equatable, Sendable {
+        /// Task work planned across the range.
+        public var planned: TimeInterval
+        /// Tasks with work left that fit on none of the days.
+        public var unplacedTaskNames: [String]
+    }
+
+    /// Plans every day from `first` through `last` (Plan Week). Days are planned in pairs, as
+    /// `plan` does, so each pair's overflow and the tasks still waiting move on to the next pair,
+    /// and time already placed on earlier days counts as done. Nothing is planned past `last`.
+    @discardableResult
+    public func plan(from first: LocalDay, through last: LocalDay, now: Date = Date()) throws -> RangeSummary {
+        var planned: TimeInterval = 0
+        var latest: Summary?
+        var day = max(first, LocalDay(now, calendar: calendar))
+        while day <= last {
+            let summary = try plan(day, now: now, spill: day < last)
+            planned += summary.planned.planned + summary.spill.planned
+            latest = summary
+            day = day.adding(days: 2, calendar: calendar)
+        }
+        return RangeSummary(planned: planned, unplacedTaskNames: latest?.unplacedTaskNames ?? [])
     }
 
     /// Re-plans after outside changes (a Reminders sync, ticket 35), but only where the user has
@@ -153,6 +199,24 @@ public struct DayPlanning {
             calendar: calendar, now: now
         )
         return plan
+    }
+
+    /// Task-block time per category in the calendar week containing `day` (done or planned),
+    /// ignoring blocks about to be replaced.
+    private func weeklyTaskTime(containing day: LocalDay, excluding replaceable: Set<UUID>,
+                                categoryOf: [UUID: String]) throws -> [String: TimeInterval] {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: day.start(in: calendar)) else { return [:] }
+        let taskBlock = CalendarEventKind.taskBlock.rawValue
+        let weekStart = week.start, weekEnd = week.end
+        let blocks = try context.fetch(FetchDescriptor<CalendarEvent>(predicate: #Predicate {
+            $0.kindRaw == taskBlock && $0.start >= weekStart && $0.start < weekEnd
+        }))
+        var result: [String: TimeInterval] = [:]
+        for block in blocks where !replaceable.contains(block.id) {
+            guard let id = block.taskID, let key = categoryOf[id] else { continue }
+            result[key, default: 0] += block.duration
+        }
+        return result
     }
 
     /// Task-block time per task across the whole calendar, ignoring blocks about to be replaced.

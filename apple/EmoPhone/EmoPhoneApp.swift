@@ -16,6 +16,8 @@ struct EmoPhoneApp: App {
             fatalError("Could not open Emo's data store: \(error)")
         }
         self.container = container
+        // The built-in categories, on first launch. Names fall back to the defaults if this fails.
+        try? CategoryCatalog(context: container.mainContext).seedBuiltInsIfNeeded()
         // Data is local to the phone (no iCloud yet, ticket 14), so the phone imports from
         // Calendar and Reminders itself; the reconcilers keep one copy per item on this device.
         _calendarSync = State(initialValue: CalendarSyncService(context: container.mainContext))

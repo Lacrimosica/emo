@@ -6,23 +6,41 @@ import SwiftData
 /// conflicts, and where a new event starts.
 @MainActor
 enum DayScreen {
-    enum PlanOutcome: Equatable {
-        /// Today's plan is sized by today's energy, so the user checks in first; plan again once saved.
-        case needsCheckIn
-        case message(String)
-    }
-
-    /// Plan Day: fills the day's free time from the backlog and says what happened.
-    static func plan(_ day: LocalDay, today: LocalDay, hasCheckIn: Bool, context: ModelContext) -> PlanOutcome {
-        if day == today, !hasCheckIn { return .needsCheckIn }
+    /// Plan Day: fills the day's free time from the backlog and returns what happened. Without a
+    /// check-in it plans with the default energy and says so, rather than asking first.
+    static func plan(_ day: LocalDay, hasCheckIn: Bool, context: ModelContext) -> String {
         do {
             if try Backlog(context: context).openTasks().isEmpty {
-                return .message("Your backlog is empty. Add some tasks, then plan.")
+                return "Your backlog is empty. Add some tasks, then plan."
             }
             let summary = try DayPlanning(context: context).plan(day)
-            return .message(describe(summary, assumedEnergy: !hasCheckIn))
+            return describe(summary, assumedEnergy: !hasCheckIn)
         } catch {
-            return .message("Couldn't plan the day: \(error.localizedDescription)")
+            return "Couldn't plan the day: \(error.localizedDescription)"
+        }
+    }
+
+    /// Plan Week: fills the rest of the week (from today, or the week's first day if later) and
+    /// says what happened.
+    static func planWeek(starting weekStart: LocalDay, today: LocalDay, context: ModelContext) -> String {
+        let last = weekStart.adding(days: 6)
+        guard last >= today else { return "This week is over." }
+        do {
+            if try Backlog(context: context).openTasks().isEmpty {
+                return "Your backlog is empty. Add some tasks, then plan."
+            }
+            let summary = try DayPlanning(context: context).plan(from: max(weekStart, today), through: last)
+            var message = summary.planned > 0
+                ? "Planned \((summary.planned / 3600).hoursLabel) this week."
+                : "Nothing more fits this week."
+            if !summary.unplacedTaskNames.isEmpty {
+                let named = summary.unplacedTaskNames.prefix(3).map { "“\($0)”" }
+                let rest = summary.unplacedTaskNames.count - named.count
+                message += " No room for \(named.formatted(.list(type: .and)))\(rest > 0 ? " and \(rest) more" : "")."
+            }
+            return message
+        } catch {
+            return "Couldn't plan the week: \(error.localizedDescription)"
         }
     }
 
@@ -50,7 +68,11 @@ enum DayScreen {
             parts.append("\((s.spill.planned / 3600).hoursLabel) moved to \(s.spill.day.start().formatted(.dateTime.weekday(.wide))).")
         }
         if s.unplacedTaskCount > 0 {
-            parts.append("\(s.unplacedTaskCount) task\(s.unplacedTaskCount == 1 ? "" : "s") still in the backlog.")
+            let named = s.unplacedTaskNames.prefix(3).map { "“\($0)”" }
+            let rest = s.unplacedTaskCount - named.count
+            var list = named.formatted(.list(type: .and))
+            if rest > 0 { list += " and \(rest) more" }
+            parts.append("Not placed in the next two days: \(list.isEmpty ? "\(s.unplacedTaskCount) tasks" : list).")
         }
         if !s.unmetTodayGoals.isEmpty {
             let names = s.unmetTodayGoals.map { "“\($0)”" }.formatted(.list(type: .and))

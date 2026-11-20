@@ -98,7 +98,7 @@ public struct SchedulingMemory {
             hours += match.observation.estimatedHours * weight
             totalWeight += weight
             energyVotes[EnergyCost(rawValue: match.observation.energyCostRaw) ?? .medium, default: 0] += weight
-            categoryVotes[TaskCategory(rawValue: match.observation.categoryRaw) ?? .personal, default: 0] += weight
+            categoryVotes[TaskCategory(key: match.observation.categoryRaw), default: 0] += weight
         }
         let estimate = min(max(((hours / totalWeight) * 4).rounded() / 4, 0.25), 24)
         return Suggestion(estimatedHours: estimate,

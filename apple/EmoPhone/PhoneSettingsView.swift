@@ -12,6 +12,13 @@ struct PhoneSettingsView: View {
                 Label("Planning", systemImage: "calendar.day.timeline.left")
             }
             NavigationLink {
+                CategoriesSettingsView()
+                    .navigationTitle("Categories")
+                    .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                Label("Categories", systemImage: "tag")
+            }
+            NavigationLink {
                 IntegrationsSettingsView()
                     .navigationTitle("Integrations")
                     .navigationBarTitleDisplayMode(.inline)

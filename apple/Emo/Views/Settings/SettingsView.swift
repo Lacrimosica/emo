@@ -12,6 +12,9 @@ struct SettingsView: View {
             Tab("AI", systemImage: "sparkles") {
                 AISettingsView()
             }
+            Tab("Categories", systemImage: "tag") {
+                CategoriesSettingsView()
+            }
             Tab("Integrations", systemImage: "link") {
                 IntegrationsSettingsView()
             }

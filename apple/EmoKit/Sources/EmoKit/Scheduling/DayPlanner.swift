@@ -55,9 +55,15 @@ public struct PlannableTask: Equatable, Sendable {
     public var goal: PlanningGoal?
     /// When this kind of task tends to happen (ticket 20): placed there first when it's free.
     public var preferredWindow: PreferredWindow?
+    public var priority: TaskPriority
+    /// Its category is below the weekly time the user wants for it (see `CategoryCatalog`).
+    public var categoryBehind: Bool
+    /// Placed only where all of `remaining` fits in one free span.
+    public var keepTogether: Bool
 
     public init(id: UUID, remaining: TimeInterval, energyCost: EnergyCost, deadline: Date?, createdAt: Date,
-                transit: TimeInterval = 0, goal: PlanningGoal? = nil, preferredWindow: PreferredWindow? = nil) {
+                transit: TimeInterval = 0, goal: PlanningGoal? = nil, preferredWindow: PreferredWindow? = nil,
+                priority: TaskPriority = .normal, categoryBehind: Bool = false, keepTogether: Bool = false) {
         self.id = id
         self.remaining = remaining
         self.energyCost = energyCost
@@ -66,6 +72,9 @@ public struct PlannableTask: Equatable, Sendable {
         self.transit = transit
         self.goal = goal
         self.preferredWindow = preferredWindow
+        self.priority = priority
+        self.categoryBehind = categoryBehind
+        self.keepTogether = keepTogether
     }
 
     /// The deadline planning works to: the task's own, or the end of the week for a week goal.
@@ -141,7 +150,8 @@ public enum DayPlanner {
         var blocks: [PlannedBlock] = []
         var overflow: [PlannableTask] = []
 
-        for var task in prioritized(input.tasks, now: input.notBefore) {
+        let dayEnergy = input.energy ?? input.settings.defaultEnergy
+        for var task in prioritized(input.tasks, now: input.notBefore, dayEnergy: dayEnergy) {
             // Travel happens once, right before the task's first block of the day. It takes time
             // on the calendar but doesn't count against the energy budget.
             var lead = task.transit
@@ -152,6 +162,8 @@ public enum DayPlanner {
                     let available = piece.duration - lead
                     let chunk = min(task.remaining, available, budgetLeft)
                     let finishesTask = chunk == task.remaining
+                    // An unsplittable task needs one span that holds all of it (and the budget for it).
+                    if task.keepTogether, !finishesTask { continue }
                     // A chunk must be at least the minimum, unless it's the task's last bit of work.
                     guard chunk >= minChunk || (finishesTask && chunk >= CalendarEngine.minimumDuration) else { continue }
                     let start = piece.start
@@ -175,21 +187,26 @@ public enum DayPlanner {
         return DayPlan(blocks: blocks, overflow: overflow)
     }
 
-    /// Highest score first: a today goal above all, then energy cost plus urgency as the deadline
-    /// (or a week goal's Sunday) nears. Older tasks win ties.
-    static func prioritized(_ tasks: [PlannableTask], now: Date) -> [PlannableTask] {
+    /// Points for a task falling behind its category's weekly target.
+    static let categoryBehindScore = 120
+    /// Points taken off for each step a task's energy is away from the day's energy (1…5 scale).
+    static let energyMismatchPenalty = 25
+
+    /// Highest score first. A today goal goes above all. Otherwise: the user's priority, urgency as
+    /// the deadline (or a week goal's Sunday) nears, a category behind its target, and how well the
+    /// task's energy fits the day (hard tasks on a high-energy day, easy ones on a low-energy day).
+    /// Older tasks win ties.
+    static func prioritized(_ tasks: [PlannableTask], now: Date, dayEnergy: Int = PlannerSettings.default.defaultEnergy) -> [PlannableTask] {
+        let dayLevel = min(max(dayEnergy, 1), 5)
         func score(_ t: PlannableTask) -> Int {
-            var s: Int
-            switch t.energyCost {
-            case .high: s = 100
-            case .medium: s = 50
-            case .low: s = 10
-            }
+            var s = t.priority.score
             if t.goal == .today { s += 10_000 }
             if let deadline = t.effectiveDeadline {
                 let daysLeft = deadline.timeIntervalSince(now) / 86_400
                 if daysLeft <= 1 { s += 500 } else if daysLeft <= 3 { s += 200 } else if daysLeft <= 7 { s += 50 }
             }
+            if t.categoryBehind { s += categoryBehindScore }
+            s -= energyMismatchPenalty * abs(t.energyCost.level - dayLevel)
             return s
         }
         return tasks.filter { $0.remaining > 0 }.sorted {
