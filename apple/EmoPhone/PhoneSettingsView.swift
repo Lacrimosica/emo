@@ -19,6 +19,13 @@ struct PhoneSettingsView: View {
                 Label("Categories", systemImage: "tag")
             }
             NavigationLink {
+                AppIconSettingsView()
+                    .navigationTitle("App Icon")
+                    .navigationBarTitleDisplayMode(.inline)
+            } label: {
+                Label("App Icon", systemImage: "app.badge")
+            }
+            NavigationLink {
                 IntegrationsSettingsView()
                     .navigationTitle("Integrations")
                     .navigationBarTitleDisplayMode(.inline)

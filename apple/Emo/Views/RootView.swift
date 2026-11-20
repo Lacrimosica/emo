@@ -34,6 +34,7 @@ struct RootView: View {
     @Environment(RemindersSyncService.self) private var remindersSync
 
     @AppStorage(SidebarItem.storageKey) private var storedSelection: SidebarItem = .today
+    @AppStorage(AppIconChoice.storageKey) private var appIcon: AppIconChoice = .lilac
     @State private var today = LocalDay.today()
     @State private var displayedDay = LocalDay.today()
     @State private var weekStart = LocalDay.today().startOfWeek()
@@ -78,6 +79,8 @@ struct RootView: View {
             CheckInSheet(day: day)
         }
         .task(id: today) { promptForCheckInIfNeeded() }
+        // The Dock icon is reset at every launch; put back the one picked in Settings.
+        .task { AppIconSwitcher.apply(appIcon) }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { refreshToday(); calendarSync.sync(); remindersSync.sync() }
         }

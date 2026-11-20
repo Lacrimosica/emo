@@ -23,6 +23,7 @@ visible schedule status, per-day skips, search, unsplittable tasks, and planning
 - [x] Store upgrade from the previous schema is tested
 - [x] Ask Emo chooses from the user's categories; categories have an icon picker
 - [x] New original app artwork (no photo of a real person); the iPhone app gets an icon too
+- [x] The icon can be changed in Settings › App Icon (five palettes)
 
 ## Comments
 
@@ -40,12 +41,17 @@ visible schedule status, per-day skips, search, unsplittable tasks, and planning
 - Migration: `StoreMigrationTests` opens `Fixtures/store-before-categories.store`, written by commit 5c64ba5.
 - Ask Emo: the schema's category is a free string; the prompt lists the user's categories (built-ins with a
   hint) and `TaskClarifier.category(named:in:)` maps the reply by name or key, else Personal.
-- Artwork: `apple/Artwork/render.swift` draws an empty newsreader's desk with a microphone in a field, under a
-  mustard sun, with "Emo" built from rounded strokes (no photos, no fonts). It renders `EMO.png`, the Mac icon
-  set and the iPhone's 1024 icon (`swift render.swift <out.png> <art|mac|ios> <pixels>`). Replaces the previous
-  icon, which used a photo of John Cleese.
+- Artwork: `apple/Artwork/render.swift` draws an abstract poster: a desk slab on a horizon line, a microphone
+  stand, a sun disc and "E mo?" ("and now?") from bars and arcs (no photos, no fonts). Palettes: lilac (main),
+  night, swiss, teal, mustard. It renders `EMO.png`, the Mac icon set, the iPhone icons and the picker previews
+  (`swift render.swift <out.png> <art|mac|ios|sheet> <pixels> [palette]`). Replaces the previous icon, which used
+  a photo of John Cleese.
+- App icon picker (Settings › App Icon, `AppIconChoice`): on iPhone a real alternate icon
+  (`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`); on the Mac the Dock icon, re-applied at launch (Finder and
+  Launchpad keep lilac; changing them would mean writing into the signed bundle).
 - Verified: 265 EmoKit tests pass; both apps build and bundle the new icons. Not clicked through in the app.
 - Manual check: add a category with a weekly target and see its tasks planned first; set a task to Do first
   and see it move to the top and onto today; skip a task for today and tomorrow, re-plan, and see it stay off
   both; Plan Day without a check-in; Plan Week with more work than two days; search the backlog;
-  a "Keep in one block" task lands only in a gap long enough for it.
+  a "Keep in one block" task lands only in a gap long enough for it; pick each app icon on Mac (Dock changes,
+  and stays after relaunch) and on iPhone (Home Screen icon changes).

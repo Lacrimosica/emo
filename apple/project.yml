@@ -73,6 +73,8 @@ targets:
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: Emo shows your calendar events and plans your tasks around them.
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: Emo brings your reminders into its backlog so it can schedule them.
         TARGETED_DEVICE_FAMILY: "1,2"   # iPhone and iPad
+        # Alternate home-screen icons the user can pick in Settings › App Icon (AppIconChoice).
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-night AppIcon-swiss AppIcon-teal AppIcon-mustard"
         CODE_SIGN_STYLE: Automatic
         # Device installs with the free team expire after 7 days: re-run from Xcode.
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor

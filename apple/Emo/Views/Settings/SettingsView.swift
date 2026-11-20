@@ -15,6 +15,9 @@ struct SettingsView: View {
             Tab("Categories", systemImage: "tag") {
                 CategoriesSettingsView()
             }
+            Tab("App Icon", systemImage: "app.badge") {
+                AppIconSettingsView()
+            }
             Tab("Integrations", systemImage: "link") {
                 IntegrationsSettingsView()
             }
